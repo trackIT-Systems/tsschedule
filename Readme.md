@@ -48,7 +48,9 @@ print(f"Next shutdown: {sc.next_shutdown()}")
 print(f"Currently active: {sc.active()}")
 ```
 
-For hardware-specific backend usage, see the [backend documentation](docs/WittyPi4.md).
+For hardware-specific backend usage, see the backend documentation:
+- [WittyPi 4 Setup](docs/WittyPi4.md) - Hardware setup for WittyPi 4 power management board
+- [Raspberry Pi 5 Setup](docs/RaspberryPi5.md) - Hardware setup for Raspberry Pi 5 with built-in RTC
 
 ## Running the Daemon
 
@@ -100,5 +102,6 @@ schedule:
 
 For complete information, see:
 - [Python API Documentation](docs/API.md) - Complete API reference for developers
-- [WittyPi 4 Setup](docs/WittyPi4.md) - Hardware-specific setup for WittyPi 4
+- [WittyPi 4 Setup](docs/WittyPi4.md) - Hardware-specific setup for WittyPi 4 power management board
+- [Raspberry Pi 5 Setup](docs/RaspberryPi5.md) - Hardware-specific setup for Raspberry Pi 5 with built-in RTC
 - [schedule.yml](schedule.yml) - Example schedule configuration
