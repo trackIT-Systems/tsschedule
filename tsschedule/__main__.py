@@ -4,13 +4,13 @@ import logging
 
 import smbus2
 
-from wittypi4 import WittyPi4
+from .backends.wittypi4 import WittyPi4
 
-logger = logging.getLogger("wittypi4")
+logger = logging.getLogger("tsschedule")
 
 parser = argparse.ArgumentParser(
-    "wittypi4",
-    description="Control WittyPi 4 devices",
+    "tsschedule",
+    description="Control schedule-based power management devices",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 )
 parser.add_argument("-v", "--verbose", help="increase output verbosity", action="count", default=0)
@@ -22,7 +22,7 @@ parser.add_argument(
     action=argparse.BooleanOptionalAction,
 )
 parser.add_argument("--bus", help="I2C bus to be used", default=1, type=int)
-parser.add_argument("--addr", help="WittyPi I2C address", default=8, type=int)
+parser.add_argument("--addr", help="Hardware I2C address", default=8, type=int)
 
 
 if __name__ == "__main__":
@@ -34,7 +34,7 @@ if __name__ == "__main__":
     logging_stderr.setLevel(logging_level)
     logging.basicConfig(level=logging.DEBUG, handlers=[logging_stderr])
 
-    # setup wittypi
+    # setup hardware backend
     bus = smbus2.SMBus(bus=args.bus, force=args.force)
     wp = WittyPi4(bus, args.addr)
 
@@ -43,7 +43,7 @@ if __name__ == "__main__":
             logger.debug("%s: %s", prop, val)
 
     # print status information
-    logger.info("WittyPi Time: %s", wp.rtc_datetime)
+    logger.info("RTC Time: %s", wp.rtc_datetime)
     logger.info("Startup Reason: %s", wp.action_reason)
     logger.info("RTC Control 1: %s", format(wp.rtc_ctrl1, "08b"))
     logger.info("RTC Control 2: %s", format(wp.rtc_ctrl2, "08b"))
@@ -71,3 +71,4 @@ if __name__ == "__main__":
     logger.info("Next Shutdown: %s", wp.get_shutdown_datetime())
 
     logger.info("%s", wp.get_status())
+

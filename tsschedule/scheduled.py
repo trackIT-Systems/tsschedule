@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""WittyPi 4 Daemon - Automated schedule management service.
+"""tsOS Schedule Daemon - Automated schedule management service.
 
-This daemon runs as a system service to automatically manage WittyPi 4 startup
-and shutdown schedules. It:
+This daemon runs as a system service to automatically manage schedule-based
+startup and shutdown. It:
 - Validates RTC time against known system time sources
 - Loads schedule configuration from YAML file
 - Continuously updates startup/shutdown alarms based on schedule
@@ -25,16 +25,17 @@ import time
 import smbus2
 import yaml
 
-from . import ActionReason, ButtonEntry, ScheduleConfiguration, WittyPi4, WittyPiException
+from . import ActionReason, ButtonEntry, ScheduleConfiguration
+from .backends.wittypi4 import WittyPi4, WittyPiException
 from .__main__ import parser
 
-parser.prog = "wittypid"
-parser.usage = "daemon to configure and handle WittyPi schedules"
+parser.prog = "tsscheduled"
+parser.usage = "daemon to configure and handle schedule-based power management"
 parser.add_argument(
     "-s", "--schedule", type=argparse.FileType("r"), help="YML schedule configuration", default="schedule.yml"
 )
 
-logger = logging.getLogger(parser.prog)
+logger = logging.getLogger("tsschedule")
 
 
 def fake_hwclock() -> datetime.datetime:
@@ -263,17 +264,17 @@ class WittyPi4Daemon(WittyPi4, threading.Thread):
             self.get_shutdown_datetime(),
             self.get_startup_datetime(),
         )
-        logger.info("Bye from wittypid")
+        logger.info("Bye from tsscheduled")
 
 
 def main():
-    """Entry point for wittypid daemon.
+    """Entry point for tsscheduled daemon.
 
-    Parses command-line arguments, initializes logging, connects to WittyPi 4
-    hardware, and starts the daemon loop.
+    Parses command-line arguments, initializes logging, connects to hardware
+    backend, and starts the daemon loop.
 
     Exit codes:
-        1: Failed to connect to WittyPi hardware
+        1: Failed to connect to hardware backend
         3: RTC validation failed (set by daemon.run())
     """
     args = parser.parse_args()
@@ -284,12 +285,12 @@ def main():
     logging_stderr.setLevel(logging_level)
     logging.basicConfig(level=logging.DEBUG, handlers=[logging_stderr])
 
-    # setup wittypi
+    # setup hardware backend (currently WittyPi4)
     bus = smbus2.SMBus(bus=args.bus, force=args.force)
     try:
         wp = WittyPi4Daemon(args.schedule, bus, args.addr)
     except WittyPiException as ex:
-        logger.error("Couldn't connect to WittyPi (%s), terminating.", ex)
+        logger.error("Couldn't connect to hardware backend (%s), terminating.", ex)
         exit(1)
 
     wp.run()
@@ -297,3 +298,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -1,5 +1,5 @@
 [project]
-name = "wittypi4"
+name = "tsschedule"
 version = "0.2"
 dependencies = [
     "i2cdevice >=1.0.0",
@@ -13,7 +13,7 @@ dependencies = [
 requires-python = ">=3.11"
 
 [tool.setuptools]
-py-modules = ["wittypi4"]
+py-modules = ["tsschedule"]
 
 [project.scripts]
-wittypid = "wittypi4.wittypid:main"
+tsscheduled = "tsschedule.scheduled:main"

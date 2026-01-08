@@ -1,6 +1,6 @@
-# WittyPi 4 Python API Reference
+# tsOS Schedule Daemon Python API Reference
 
-This document provides comprehensive API reference for developers using the WittyPi 4 Python library.
+This document provides comprehensive API reference for developers using the tsOS Schedule Daemon (tsschedule) Python library.
 
 ## Table of Contents
 
@@ -22,10 +22,10 @@ This document provides comprehensive API reference for developers using the Witt
 
 ```python
 import smbus2
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 import datetime
 
-# Initialize WittyPi 4
+# Initialize WittyPi 4 backend
 bus = smbus2.SMBus(1, force=True)
 wp = WittyPi4(bus)
 
@@ -78,7 +78,7 @@ WittyPi4(bus=None, addr=0x08, tz=datetime.UTC)
 
 ```python
 import smbus2
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 
 bus = smbus2.SMBus(1, force=True)
 wp = WittyPi4(bus)
@@ -106,7 +106,7 @@ ScheduleConfiguration(config, tz=None)
 **Example:**
 
 ```python
-from wittypi4 import ScheduleConfiguration
+from tsschedule import ScheduleConfiguration
 
 config = {
     'lat': 50.85318,
@@ -133,7 +133,7 @@ print(f"Currently active: {sc.active()}")
 
 ### ActionReason
 
-Enumeration of possible reasons for WittyPi 4 power state changes.
+Enumeration of possible reasons for power state changes.
 
 **Values:**
 - `ALARM_STARTUP (0x01)`: Scheduled startup via Alarm 1
@@ -151,7 +151,8 @@ Enumeration of possible reasons for WittyPi 4 power state changes.
 **Example:**
 
 ```python
-from wittypi4 import WittyPi4, ActionReason
+from tsschedule.backends.wittypi4 import WittyPi4
+from tsschedule import ActionReason
 
 wp = WittyPi4()
 if wp.action_reason == ActionReason.BUTTON_CLICK:
@@ -167,6 +168,8 @@ elif wp.action_reason == ActionReason.ALARM_STARTUP:
 Read input/output voltage and current consumption:
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Voltage readings (in Volts)
@@ -185,6 +188,8 @@ power = wp.watts_out  # or: voltage_out * current_out
 Read temperature from onboard LM75B sensor:
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 temperature = wp.lm75b_temperature  # in Celsius
 ```
@@ -194,6 +199,8 @@ temperature = wp.lm75b_temperature  # in Celsius
 Get a comprehensive status dictionary:
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 status = wp.get_status()
 
@@ -245,7 +252,7 @@ schedule:
 
 ```python
 import yaml
-from wittypi4 import ScheduleConfiguration
+from tsschedule import ScheduleConfiguration
 
 with open('schedule.yml', 'r') as f:
     config = yaml.safe_load(f)
@@ -277,7 +284,7 @@ if next_stop:
 
 ```python
 import datetime
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 
 wp = WittyPi4()
 
@@ -297,6 +304,8 @@ wp.set_shutdown_datetime(None)
 ### Reading Alarms
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Get currently configured alarms
@@ -312,6 +321,8 @@ print(f"Shutdown: {next_shutdown}")
 After processing an alarm event, clear the flags:
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 wp.clear_flags()  # Clears alarm1_flag, alarm2_flag, and RTC alarm flag
 ```
@@ -321,6 +332,8 @@ wp.clear_flags()  # Clears alarm1_flag, alarm2_flag, and RTC alarm flag
 ### Reading RTC Time
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 rtc_time = wp.rtc_datetime
 print(f"RTC Time: {rtc_time}")
@@ -330,7 +343,7 @@ print(f"RTC Time: {rtc_time}")
 
 ```python
 import datetime
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 
 wp = WittyPi4()
 
@@ -344,6 +357,8 @@ wp.rtc_datetime = datetime.datetime(2024, 10, 17, 12, 30, 0)
 ### Validating RTC vs System Clock
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Check if RTC and system clock match (within 2 seconds by default)
@@ -362,6 +377,8 @@ if wp.rtc_sysclock_match(threshold=datetime.timedelta(seconds=5)):
 ### Power Management
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Default power on behavior
@@ -376,6 +393,8 @@ print(f"Power cut delay: {wp.power_cut_delay}s")
 ### Voltage Thresholds
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Low voltage shutdown threshold (in Volts, 0.0 to disable)
@@ -390,6 +409,8 @@ print(f"Recovery voltage: {wp.recovery_voltage}V")
 ### Temperature Actions
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Temperature thresholds (in Celsius)
@@ -403,6 +424,8 @@ wp.below_temperature_action = 1  # 0=nothing, 1=shutdown
 ### LED and Pulse Configuration
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # LED blink configuration
@@ -417,6 +440,8 @@ wp.pulse_interval = 10  # Interval in 0.1 seconds
 Fine-tune voltage and current readings:
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Adjustment values (typically -1.00 to +1.00)
@@ -428,6 +453,8 @@ wp.adj_iout = 0.01   # Adjust output current reading
 ### Dumping All Configuration
 
 ```python
+from tsschedule.backends.wittypi4 import WittyPi4
+
 wp = WittyPi4()
 
 # Get all readable properties as a dictionary
@@ -441,28 +468,28 @@ for key, value in config.items():
 ### I2C Address
 
 ```python
-from wittypi4 import I2C_MC_ADDRESS
+from tsschedule import I2C_MC_ADDRESS
 
-# Default I2C address
+# Default I2C address (WittyPi 4)
 addr = I2C_MC_ADDRESS  # 0x08
 ```
 
 ### GPIO Pins
 
 ```python
-from wittypi4 import HALT_PIN, SYSUP_PIN
+from tsschedule import HALT_PIN, SYSUP_PIN
 
-# GPIO pins (BCM numbering)
+# GPIO pins (BCM numbering, WittyPi 4 specific)
 halt_pin = HALT_PIN    # 4  - Shutdown signal from WittyPi
 sysup_pin = SYSUP_PIN  # 17 - System running signal to WittyPi
 ```
 
 ### I2C Registers
 
-All I2C register addresses are available as constants:
+I2C register addresses are available in backend modules:
 
 ```python
-from wittypi4 import (
+from tsschedule.backends.wittypi4 import (
     I2C_ID,
     I2C_VOLTAGE_IN_I,
     I2C_VOLTAGE_OUT_I,
@@ -481,7 +508,7 @@ from wittypi4 import (
 Raised when there are communication errors or unexpected hardware responses:
 
 ```python
-from wittypi4 import WittyPi4, WittyPiException
+from tsschedule.backends.wittypi4 import WittyPi4, WittyPiException
 import smbus2
 
 try:
@@ -489,7 +516,7 @@ try:
     wp = WittyPi4(bus)
     print("Connected successfully")
 except WittyPiException as e:
-    print(f"Failed to connect to WittyPi: {e}")
+    print(f"Failed to connect to hardware backend: {e}")
 except OSError as e:
     print(f"I2C communication error: {e}")
 ```
@@ -520,7 +547,7 @@ except OSError as e:
 
 ```python
 import smbus2
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 
 class WittyPiContext(WittyPi4):
     def __enter__(self):
@@ -538,7 +565,7 @@ with WittyPiContext() as wp:
 
 ```python
 import time
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 
 wp = WittyPi4()
 
@@ -558,7 +585,7 @@ except KeyboardInterrupt:
 
 ```python
 import datetime
-from wittypi4 import WittyPi4
+from tsschedule.backends.wittypi4 import WittyPi4
 
 # Use specific timezone for RTC operations
 berlin_tz = datetime.timezone(datetime.timedelta(hours=1))
@@ -570,7 +597,8 @@ print(wp.rtc_datetime)
 
 ## See Also
 
-- [Main README](../Readme.md) - Hardware setup and installation
+- [Main README](../Readme.md) - Software overview and installation
+- [WittyPi 4 Setup](WittyPi4.md) - Hardware setup and installation for WittyPi 4
 - [Example Schedule](../schedule.yml) - Example schedule configuration
 - [WittyPi 4 User Manual](https://www.uugear.com/doc/WittyPi4_UserManual.pdf) - Official hardware documentation
 

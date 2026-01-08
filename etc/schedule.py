@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from wittypi4 import ScheduleConfiguration
+from tsschedule import ScheduleConfiguration
 
 logging.basicConfig(level=logging.INFO)
 
