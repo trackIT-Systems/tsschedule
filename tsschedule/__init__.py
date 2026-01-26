@@ -493,7 +493,12 @@ def detect_hardware(manual_override: str | None = None) -> str | None:
         model_path = pathlib.Path("/proc/device-tree/model")
         if model_path.exists():
             model_text = model_path.read_text()
-            if "Raspberry Pi 5" in model_text:
+            # List of Raspberry Pi 5 model prefixes to check
+            pi5_model_prefixes = [
+                "Raspberry Pi 5",
+                "Raspberry Pi Compute Module 5",
+            ]
+            if any(model_text.startswith(prefix) for prefix in pi5_model_prefixes):
                 # Check for RTC wakealarm support
                 wakealarm_path = pathlib.Path("/sys/class/rtc/rtc0/wakealarm")
                 if wakealarm_path.exists():
