@@ -7,6 +7,7 @@ import datetime
 import logging
 import os
 import pathlib
+import struct
 import subprocess
 import tempfile
 
@@ -15,6 +16,24 @@ from .base import PowerManager
 from .wittypi4 import WittyPiException
 
 logger = logging.getLogger("tsschedule.backends.raspberrypi5")
+
+POWER_DT_PATH = pathlib.Path("/proc/device-tree/chosen/power")
+
+POWER_RESET_BITS = {
+    0: "over_voltage",
+    1: "under_voltage",
+    2: "over_temperature",
+    3: "enable_signal",
+    4: "watchdog",
+}
+
+
+def _read_dt_u32(path: pathlib.Path) -> int | None:
+    """Read a big-endian u32 device-tree property, or None if unavailable."""
+    try:
+        return struct.unpack(">I", path.read_bytes())[0]
+    except (OSError, struct.error):
+        return None
 
 
 class RaspberryPi5(PowerManager):
@@ -27,10 +46,10 @@ class RaspberryPi5(PowerManager):
     - System shutdown with wake scheduling
 
     The Raspberry Pi 5 RTC functionality is more limited than WittyPi hardware:
-    - No voltage/current monitoring
+    - No live voltage/current monitoring
     - No temperature monitoring
     - No hardware power cut delays
-    - No wake reason detection (always returns REASON_NA)
+    - Partial power-reset reason detection via device-tree at boot
 
     Requires:
     - EEPROM configuration: POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0
@@ -68,10 +87,25 @@ class RaspberryPi5(PowerManager):
         if check_eeprom:
             self._check_eeprom_config()
 
-        # Detect action reason on initialization
         self._shutdown_datetime: datetime.datetime | None = None
+        self._power_reset: int | None = None
+        self._max_current: int | None = None
+        self._usb_over_current_detected: bool | None = None
+        self._read_power_diagnostics()
 
         logger.info("Raspberry Pi 5 RTC interface initialized")
+
+    def _read_power_diagnostics(self):
+        """Read boot-time power diagnostics from device-tree."""
+        if not POWER_DT_PATH.is_dir():
+            return
+
+        self._power_reset = _read_dt_u32(POWER_DT_PATH / "power_reset")
+        self._max_current = _read_dt_u32(POWER_DT_PATH / "max_current")
+
+        usb_oc = _read_dt_u32(POWER_DT_PATH / "usb_over_current_detected")
+        if usb_oc is not None:
+            self._usb_over_current_detected = bool(usb_oc)
 
     def _check_eeprom_config(self):
         """Check and update EEPROM configuration for sleep/wake support.
@@ -352,12 +386,59 @@ class RaspberryPi5(PowerManager):
         pass
 
     @property
+    def power_reset(self) -> int | None:
+        """PMIC reset reason bitfield from device-tree, or None if unavailable."""
+        return self._power_reset
+
+    @property
+    def power_reset_reasons(self) -> list[str]:
+        """Decoded PMIC reset reason names for set bits in power_reset."""
+        if self._power_reset is None:
+            return []
+        return [
+            name for bit, name in POWER_RESET_BITS.items()
+            if self._power_reset & (1 << bit)
+        ]
+
+    @property
+    def max_current(self) -> int | None:
+        """Negotiated PSU current limit in mA, or None if unavailable."""
+        return self._max_current
+
+    @property
+    def usb_over_current_detected(self) -> bool | None:
+        """Whether USB overcurrent was detected during boot, or None if unavailable."""
+        return self._usb_over_current_detected
+
+    def get_status(self) -> dict[str, int | str | bool | None]:
+        """Get boot-time power supply diagnostics.
+
+        Returns:
+            Dictionary containing power_reset, decoded reasons, max_current,
+            and usb_over_current_detected values.
+        """
+        return {
+            "Power Reset": self._power_reset,
+            "Power Reset Reasons": ", ".join(self.power_reset_reasons) or "none",
+            "Max Current (mA)": self._max_current,
+            "USB Overcurrent Detected": self._usb_over_current_detected,
+        }
+
+    @property
     def action_reason(self) -> ActionReason:
         """Get the reason for the current power state.
 
-        Returns:
-            ActionReason.REASON_NA (always, as wake reason detection is not reliable
-            on Raspberry Pi 5)
+        Maps PMIC power_reset bits to ActionReason where possible.
         """
+        if self._power_reset is None or self._power_reset == 0:
+            return ActionReason.REASON_NA
+
+        if self._power_reset & (1 << 1):
+            return ActionReason.LOW_VOLTAGE
+        if self._power_reset & (1 << 2):
+            return ActionReason.OVER_TEMPERATURE
+        if self._power_reset & (1 << 4):
+            return ActionReason.REBOOT
+
         return ActionReason.REASON_NA
 

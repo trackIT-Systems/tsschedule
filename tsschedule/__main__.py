@@ -70,6 +70,19 @@ if __name__ == "__main__":
         logger.info("RTC Control 1: %s", format(device.rtc_ctrl1, "08b"))
         logger.info("RTC Control 2: %s", format(device.rtc_ctrl2, "08b"))
 
+    if isinstance(device, RaspberryPi5):
+        status = device.get_status()
+        logger.info("Power supply: max_current=%s mA", status.get("Max Current (mA)"))
+        logger.info("%s", status)
+        if device.power_reset:
+            logger.warning(
+                "PMIC reset detected: %s (0x%x)",
+                status["Power Reset Reasons"],
+                device.power_reset,
+            )
+        if device.usb_over_current_detected:
+            logger.warning("USB overcurrent detected during boot")
+
     device.clear_flags()
 
     # schedule next startup

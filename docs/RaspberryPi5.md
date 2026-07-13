@@ -141,6 +141,31 @@ The system will wake and restart automatically when the alarm fires. The power b
 
 > **Reference**: For more details on power consumption and RTC wake-up, see [Jeff Geerling's article on reducing Raspberry Pi 5 power consumption](https://www.jeffgeerling.com/blog/2023/reducing-raspberry-pi-5s-power-consumption-140x/).
 
+## Power Diagnostics
+
+The Raspberry Pi 5 firmware exports boot-time power supply information via device-tree at `/proc/device-tree/chosen/power/`. The `tsschedule` `RaspberryPi5` backend reads these values once at startup:
+
+| Property | sysfs file | Description |
+|---|---|---|
+| `power_reset` | `power_reset` | Bitfield indicating why the PMIC was reset (under/over voltage, over-temp, watchdog) |
+| `max_current` | `max_current` | Negotiated PSU current limit in mA |
+| `usb_over_current_detected` | `usb_over_current_detected` | Non-zero if USB overcurrent occurred during boot |
+
+Example output from `get_status()`:
+
+```python
+from tsschedule.backends.raspberrypi5 import RaspberryPi5
+
+pi5 = RaspberryPi5(check_eeprom=False)
+print(pi5.get_status())
+# {'Power Reset': 0, 'Power Reset Reasons': 'none',
+#  'Max Current (mA)': 5000, 'USB Overcurrent Detected': False}
+```
+
+If `power_reset` is non-zero after an unexpected reboot, check the decoded reasons — bit 1 (`under_voltage`) is the most common indicator of power supply problems. The `tsscheduled` daemon logs a warning when a PMIC reset or USB overcurrent is detected.
+
+> **Reference**: [Power supply properties](https://www.raspberrypi.com/documentation/computers/configuration.html#power-supply-properties-chosenpower)
+
 ## Python API Usage
 
 The tsschedule library provides a `RaspberryPi5` backend that interfaces with the Linux RTC automatically.

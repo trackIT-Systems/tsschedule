@@ -222,12 +222,20 @@ RaspberryPi5(tz=datetime.UTC, check_eeprom=True)
 - Wake alarm configuration via sysfs
 - System shutdown with wake scheduling
 - Automatic EEPROM configuration checking
+- Boot-time power diagnostics via device-tree (`power_reset`, `max_current`, `usb_over_current_detected`)
 
 **Limitations:**
-- No voltage/current monitoring (WittyPi4 only)
+- No live voltage/current monitoring (WittyPi4 only)
 - No temperature monitoring (WittyPi4 only)
 - No hardware power cut delays (WittyPi4 only)
-- No wake reason detection (always returns REASON_NA)
+- Partial wake/power-reset reason detection via device-tree at boot
+
+**Power Diagnostics Properties:**
+- `power_reset`: Raw PMIC reset bitfield (`int | None`)
+- `power_reset_reasons`: Decoded reason names (`list[str]`)
+- `max_current`: Negotiated PSU limit in mA (`int | None`)
+- `usb_over_current_detected`: USB overcurrent during boot (`bool | None`)
+- `get_status()`: Dictionary with all power diagnostic values
 
 **Example:**
 
@@ -246,6 +254,10 @@ pi5.set_startup_datetime(datetime.datetime.now() + datetime.timedelta(hours=1))
 
 # Schedule shutdown in 30 minutes
 pi5.set_shutdown_datetime(datetime.datetime.now() + datetime.timedelta(minutes=30))
+
+# Read boot-time power diagnostics
+print(pi5.get_status())
+print(f"Action reason: {pi5.action_reason}")
 ```
 
 **Note:** Raspberry Pi 5 requires EEPROM configuration (`POWER_OFF_ON_HALT=1` and `WAKE_ON_GPIO=0`) for proper sleep/wake functionality. The `RaspberryPi5` class automatically checks and configures these settings if `check_eeprom=True` (default).

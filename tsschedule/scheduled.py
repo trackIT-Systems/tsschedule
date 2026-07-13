@@ -187,6 +187,18 @@ class PowerManagerDaemon(threading.Thread):
         logger.info("Welcome to %s, action reason: %s", parser.prog, self._device.action_reason)
         self._device.clear_flags()
 
+        if isinstance(self._device, RaspberryPi5):
+            status = self._device.get_status()
+            logger.info("Power supply: max_current=%s mA", status.get("Max Current (mA)"))
+            if self._device.power_reset:
+                logger.warning(
+                    "PMIC reset detected: %s (0x%x)",
+                    status["Power Reset Reasons"],
+                    self._device.power_reset,
+                )
+            if self._device.usb_over_current_detected:
+                logger.warning("USB overcurrent detected during boot")
+
         # Hardware-specific configuration (only for WittyPi4)
         if isinstance(self._device, WittyPi4):
             # setting default on
