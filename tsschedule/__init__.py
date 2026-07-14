@@ -273,11 +273,15 @@ class ScheduleConfiguration:
             - tz: Timezone name (e.g., "Europe/Berlin", "America/New_York") for schedule calculations (optional, defaults to system timezone)
             - force_on: If True, system stays on indefinitely (optional, default False)
             - button_delay: Duration string (e.g., "00:30") to stay on after button press (optional, default: "00:10")
+            - recovery_interval: Brownout-recovery grid period (optional, "00:00" or absent disables)
+            - recovery_guard: Guard interval before a grid point (optional, default: "00:00")
             - schedule: List of schedule entry dicts with 'name', 'start', 'stop'
 
     Attributes:
         force_on: If True, system never shuts down automatically
         button_delay: Timedelta to stay on after manual power-on
+        recovery_interval: Grid period for brownout recovery, or None if disabled
+        recovery_guard: Minimum lead time before a grid wake point
         entries: List of ScheduleEntry objects
 
     Example:
@@ -350,6 +354,22 @@ class ScheduleConfiguration:
             self.button_delay = datetime.timedelta(minutes=10)
         logger.debug("Using button delay of %s", self.button_delay)
 
+        self.recovery_interval: datetime.timedelta | None = None
+        raw = config.get("recovery_interval")
+        if raw:
+            secs = pytimeparse.parse(raw, granularity="minutes")
+            if secs and secs > 0:
+                self.recovery_interval = datetime.timedelta(seconds=secs)
+                logger.info("Recovery interval enabled: %s", self.recovery_interval)
+
+        self.recovery_guard = datetime.timedelta(0)
+        raw = config.get("recovery_guard")
+        if raw:
+            secs = pytimeparse.parse(raw, granularity="minutes")
+            if secs and secs > 0:
+                self.recovery_guard = datetime.timedelta(seconds=secs)
+                logger.info("Recovery guard interval: %s", self.recovery_guard)
+
         self.entries: list[ScheduleEntry] = []
 
         if "schedule" not in config or not isinstance(config["schedule"], collections.abc.Iterable):
@@ -390,6 +410,33 @@ class ScheduleConfiguration:
             return min([e.next_start(now) for e in self.entries if e.next_start(now)])
         except ValueError:
             return None
+
+    def next_recovery(self, now: datetime.datetime | None = None) -> datetime.datetime | None:
+        """Calculate the next brownout-recovery wake time on the configured grid.
+
+        Returns the next grid-aligned time strictly after ``now``, skipping
+        grid points closer than ``recovery_guard``. Only returns a time when
+        the schedule is active at that grid point (or ``force_on`` is set).
+
+        Args:
+            now: Reference time for calculation. Defaults to current time.
+
+        Returns:
+            Datetime of next recovery wake, or None if disabled or the next
+            grid point falls in a scheduled off period.
+        """
+        now = now or datetime.datetime.now(tz=self._tz)
+        now = now.astimezone(self._tz)
+        if not self.recovery_interval:
+            return None
+
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        n = (now - midnight) // self.recovery_interval + 1
+        candidate = midnight + n * self.recovery_interval
+        while candidate - now < self.recovery_guard:
+            candidate += self.recovery_interval
+
+        return candidate if self.active(candidate) else None
 
     def next_shutdown(self, now: datetime.datetime | None = None) -> datetime.datetime | None:
         """Calculate the next scheduled shutdown time.

@@ -279,6 +279,8 @@ ScheduleConfiguration(config)
   - `tz` (str, optional): Timezone name (e.g., "Europe/Berlin", "America/New_York") for schedule calculations (defaults to system timezone)
   - `force_on` (bool, optional): If True, system stays on indefinitely (default: False)
   - `button_delay` (str, optional): Duration string (e.g., "00:30") to stay on after button press (default: "00:10")
+  - `recovery_interval` (str, optional): Brownout-recovery grid period (e.g., `"00:30"`). `"00:00"` or absent disables recovery.
+  - `recovery_guard` (str, optional): Guard interval (e.g., `"00:05"`). If the next grid point is closer than this, skip to the following one (default: `"00:00"`)
   - `schedule` (list): List of schedule entry dicts with 'name', 'start', 'stop'
 
 **Example:**
@@ -307,8 +309,19 @@ print(f"Currently active: {sc.active()}")
 **Methods:**
 
 - `next_startup(now=None)`: Calculate the next scheduled startup time
+- `next_recovery(now=None)`: Calculate the next brownout-recovery grid wake (only during scheduled on-times)
 - `next_shutdown(now=None)`: Calculate the next scheduled shutdown time
 - `active(now=None)`: Check if system should be powered on at given time
+
+**Recovery grid examples** (with `recovery_interval: "00:30"`, `recovery_guard: "00:05"`):
+
+| Current time | Next recovery wake |
+|---|---|
+| 01:47 | 02:00 |
+| 02:03 | 02:30 |
+| 01:56 | 02:30 (02:00 skipped: only 4 min away, less than guard) |
+
+Recovery wakes are only returned when the schedule is active at that grid time.
 
 ### ActionReason
 

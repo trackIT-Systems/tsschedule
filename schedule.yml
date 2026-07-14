@@ -28,3 +28,8 @@ schedule:
 
 # shutdown interval after manual powering (default: 00:10 - 10 minutes)
 # button_delay: "00:10"
+
+# brownout recovery: wake on a grid of this period during on-times ("00:00" or absent = disabled)
+# recovery_interval: "00:30"
+# guard interval: if the next grid point is closer than this, skip to the next one (default "00:00")
+# recovery_guard: "00:05"

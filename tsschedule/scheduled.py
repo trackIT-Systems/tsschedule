@@ -141,6 +141,17 @@ def last_known_time() -> datetime.datetime:
     return max(clocks)
 
 
+def _effective_startup(sc: ScheduleConfiguration, now: datetime.datetime | None = None) -> datetime.datetime | None:
+    """Combine scheduled startup with brownout-recovery grid wake."""
+    next_startup = sc.next_startup(now)
+    next_recovery = sc.next_recovery(now)
+    candidates = [t for t in (next_startup, next_recovery) if t is not None]
+    effective_startup = min(candidates) if candidates else None
+    if next_recovery and effective_startup == next_recovery and next_recovery != next_startup:
+        logger.info("Recovery grid wake selected: %s", next_recovery)
+    return effective_startup
+
+
 class PowerManagerDaemon(threading.Thread):
     """Daemon thread for managing power management schedules automatically.
 
@@ -251,10 +262,18 @@ class PowerManagerDaemon(threading.Thread):
         while not self._stop.is_set():
             now = self._device.rtc_datetime
             next_startup = sc.next_startup(now)
+            next_recovery = sc.next_recovery(now)
+            effective_startup = _effective_startup(sc, now)
             next_shutdown = sc.next_shutdown(now)
 
-            logger.info("Setting next_shutdown: %s, next_startup: %s", next_shutdown, next_startup)
-            self._device.set_startup_datetime(next_startup)
+            logger.info(
+                "Setting next_shutdown: %s, next_startup: %s, next_recovery: %s, effective_startup: %s",
+                next_shutdown,
+                next_startup,
+                next_recovery,
+                effective_startup,
+            )
+            self._device.set_startup_datetime(effective_startup)
             self._device.set_shutdown_datetime(next_shutdown)
 
             # Check if shutdown time has arrived
@@ -283,7 +302,7 @@ class PowerManagerDaemon(threading.Thread):
             self._stop.wait(60)
 
         self._device.set_shutdown_datetime(None)
-        self._device.set_startup_datetime(sc.next_startup())
+        self._device.set_startup_datetime(_effective_startup(sc))
         logger.info(
             "Terminating, set ScheduleConfiguration shutdown: %s, startup: %s",
             self._device.get_shutdown_datetime(),
