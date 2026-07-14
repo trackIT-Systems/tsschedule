@@ -222,7 +222,7 @@ RaspberryPi5(tz=datetime.UTC, check_eeprom=True)
 - Wake alarm configuration via sysfs
 - System shutdown with wake scheduling
 - Automatic EEPROM configuration checking
-- Boot-time power diagnostics via device-tree (`power_reset`, `max_current`, `usb_over_current_detected`)
+- Boot-time reset and power diagnostics via device-tree (`pm_rsts`, `power_reset`, `max_current`, `usb_over_current_detected`)
 
 **Limitations:**
 - No live voltage/current monitoring (WittyPi4 only)
@@ -231,6 +231,8 @@ RaspberryPi5(tz=datetime.UTC, check_eeprom=True)
 - Partial wake/power-reset reason detection via device-tree at boot
 
 **Power Diagnostics Properties:**
+- `pm_rsts`: Raw PM_RSTS reset-reason register (`int | None`, same as `vcgencmd get_rsts`)
+- `pm_rsts_reasons`: Decoded boot reset reason names (`list[str]`)
 - `power_reset`: Raw PMIC reset bitfield (`int | None`)
 - `power_reset_reasons`: Decoded reason names (`list[str]`)
 - `max_current`: Negotiated PSU limit in mA (`int | None`)

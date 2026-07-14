@@ -201,6 +201,12 @@ class PowerManagerDaemon(threading.Thread):
         if isinstance(self._device, RaspberryPi5):
             status = self._device.get_status()
             logger.info("Power supply: max_current=%s mA", status.get("Max Current (mA)"))
+            if self._device.pm_rsts is not None:
+                logger.info(
+                    "Boot reset (PM_RSTS): %s (0x%x)",
+                    status["PM RSTs Reasons"],
+                    self._device.pm_rsts,
+                )
             if self._device.power_reset:
                 logger.warning(
                     "PMIC reset detected: %s (0x%x)",

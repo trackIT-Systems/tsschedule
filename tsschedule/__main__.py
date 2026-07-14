@@ -73,6 +73,12 @@ if __name__ == "__main__":
     if isinstance(device, RaspberryPi5):
         status = device.get_status()
         logger.info("Power supply: max_current=%s mA", status.get("Max Current (mA)"))
+        if device.pm_rsts is not None:
+            logger.info(
+                "Boot reset (PM_RSTS): %s (0x%x)",
+                status["PM RSTs Reasons"],
+                device.pm_rsts,
+            )
         logger.info("%s", status)
         if device.power_reset:
             logger.warning(

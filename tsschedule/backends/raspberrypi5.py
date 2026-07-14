@@ -18,6 +18,7 @@ from .wittypi4 import WittyPiException
 logger = logging.getLogger("tsschedule.backends.raspberrypi5")
 
 POWER_DT_PATH = pathlib.Path("/proc/device-tree/chosen/power")
+BOOTLOADER_RSTS_PATH = pathlib.Path("/proc/device-tree/chosen/bootloader/rsts")
 
 POWER_RESET_BITS = {
     0: "over_voltage",
@@ -25,6 +26,16 @@ POWER_RESET_BITS = {
     2: "over_temperature",
     3: "enable_signal",
     4: "watchdog",
+}
+
+# PM_RSTS reset-reason bits (same value as vcgencmd get_rsts).
+PM_RSTS_BITS = {
+    12: "power_on_reset",
+    5: "watchdog_full_reset",
+    4: "watchdog_quick_reset",
+    2: "debugger_hard_reset",
+    1: "debugger_full_reset",
+    0: "debugger_quick_reset",
 }
 
 
@@ -49,7 +60,7 @@ class RaspberryPi5(PowerManager):
     - No live voltage/current monitoring
     - No temperature monitoring
     - No hardware power cut delays
-    - Partial power-reset reason detection via device-tree at boot
+    - Boot-time reset and power diagnostics via device-tree
 
     Requires:
     - EEPROM configuration: POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0
@@ -89,6 +100,7 @@ class RaspberryPi5(PowerManager):
 
         self._shutdown_datetime: datetime.datetime | None = None
         self._power_reset: int | None = None
+        self._pm_rsts: int | None = None
         self._max_current: int | None = None
         self._usb_over_current_detected: bool | None = None
         self._read_power_diagnostics()
@@ -96,7 +108,9 @@ class RaspberryPi5(PowerManager):
         logger.info("Raspberry Pi 5 RTC interface initialized")
 
     def _read_power_diagnostics(self):
-        """Read boot-time power diagnostics from device-tree."""
+        """Read boot-time reset and power diagnostics from device-tree."""
+        self._pm_rsts = _read_dt_u32(BOOTLOADER_RSTS_PATH)
+
         if not POWER_DT_PATH.is_dir():
             return
 
@@ -401,6 +415,21 @@ class RaspberryPi5(PowerManager):
         ]
 
     @property
+    def pm_rsts(self) -> int | None:
+        """PM_RSTS reset-reason register from device-tree, or None if unavailable."""
+        return self._pm_rsts
+
+    @property
+    def pm_rsts_reasons(self) -> list[str]:
+        """Decoded reset reason names for set bits in pm_rsts."""
+        if self._pm_rsts is None:
+            return []
+        return [
+            name for bit, name in PM_RSTS_BITS.items()
+            if self._pm_rsts & (1 << bit)
+        ]
+
+    @property
     def max_current(self) -> int | None:
         """Negotiated PSU current limit in mA, or None if unavailable."""
         return self._max_current
@@ -411,13 +440,15 @@ class RaspberryPi5(PowerManager):
         return self._usb_over_current_detected
 
     def get_status(self) -> dict[str, int | str | bool | None]:
-        """Get boot-time power supply diagnostics.
+        """Get boot-time reset and power supply diagnostics.
 
         Returns:
-            Dictionary containing power_reset, decoded reasons, max_current,
-            and usb_over_current_detected values.
+            Dictionary containing pm_rsts, power_reset, decoded reasons,
+            max_current, and usb_over_current_detected values.
         """
         return {
+            "PM RSTs": self._pm_rsts,
+            "PM RSTs Reasons": ", ".join(self.pm_rsts_reasons) or "none",
             "Power Reset": self._power_reset,
             "Power Reset Reasons": ", ".join(self.power_reset_reasons) or "none",
             "Max Current (mA)": self._max_current,
@@ -428,17 +459,19 @@ class RaspberryPi5(PowerManager):
     def action_reason(self) -> ActionReason:
         """Get the reason for the current power state.
 
-        Maps PMIC power_reset bits to ActionReason where possible.
+        Maps PMIC power_reset and PM_RSTS bits to ActionReason where possible.
         """
-        if self._power_reset is None or self._power_reset == 0:
-            return ActionReason.REASON_NA
+        if self._power_reset:
+            if self._power_reset & (1 << 1):
+                return ActionReason.LOW_VOLTAGE
+            if self._power_reset & (1 << 2):
+                return ActionReason.OVER_TEMPERATURE
+            if self._power_reset & (1 << 4):
+                return ActionReason.REBOOT
 
-        if self._power_reset & (1 << 1):
-            return ActionReason.LOW_VOLTAGE
-        if self._power_reset & (1 << 2):
-            return ActionReason.OVER_TEMPERATURE
-        if self._power_reset & (1 << 4):
-            return ActionReason.REBOOT
+        if self._pm_rsts:
+            if self._pm_rsts & ((1 << 5) | (1 << 4)):
+                return ActionReason.REBOOT
 
         return ActionReason.REASON_NA
 

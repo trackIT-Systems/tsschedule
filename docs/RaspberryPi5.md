@@ -143,10 +143,11 @@ The system will wake and restart automatically when the alarm fires. The power b
 
 ## Power Diagnostics
 
-The Raspberry Pi 5 firmware exports boot-time power supply information via device-tree at `/proc/device-tree/chosen/power/`. The `tsschedule` `RaspberryPi5` backend reads these values once at startup:
+The Raspberry Pi 5 firmware exports boot-time power supply information via device-tree at `/proc/device-tree/chosen/power/`, and the last reset reason (PM_RSTS) at `/proc/device-tree/chosen/bootloader/rsts`. The `tsschedule` `RaspberryPi5` backend reads these values once at startup:
 
 | Property | sysfs file | Description |
 |---|---|---|
+| `pm_rsts` | `/proc/device-tree/chosen/bootloader/rsts` | Last reset reason register (power-on, watchdog, debugger resets) |
 | `power_reset` | `power_reset` | Bitfield indicating why the PMIC was reset (under/over voltage, over-temp, watchdog) |
 | `max_current` | `max_current` | Negotiated PSU current limit in mA |
 | `usb_over_current_detected` | `usb_over_current_detected` | Non-zero if USB overcurrent occurred during boot |
@@ -158,11 +159,19 @@ from tsschedule.backends.raspberrypi5 import RaspberryPi5
 
 pi5 = RaspberryPi5(check_eeprom=False)
 print(pi5.get_status())
-# {'Power Reset': 0, 'Power Reset Reasons': 'none',
+# {'PM RSTs': 4096, 'PM RSTs Reasons': 'power_on_reset',
+#  'Power Reset': 0, 'Power Reset Reasons': 'none',
 #  'Max Current (mA)': 5000, 'USB Overcurrent Detected': False}
 ```
 
-If `power_reset` is non-zero after an unexpected reboot, check the decoded reasons — bit 1 (`under_voltage`) is the most common indicator of power supply problems. The `tsscheduled` daemon logs a warning when a PMIC reset or USB overcurrent is detected.
+`PM_RSTs` values commonly seen:
+
+| Value | Reason | Typical cause |
+|---|---|---|
+| `0x1000` | `power_on_reset` | Cold boot: power applied, RTC wake, brownout recovery |
+| `0x20` | `watchdog_full_reset` | `reboot`, `shutdown`, or hardware watchdog |
+
+If `power_reset` is non-zero after an unexpected reboot, check the decoded PMIC reasons — bit 1 (`under_voltage`) is the most common indicator of power supply problems. The `tsscheduled` daemon logs boot reset and PMIC reset information at startup.
 
 > **Reference**: [Power supply properties](https://www.raspberrypi.com/documentation/computers/configuration.html#power-supply-properties-chosenpower)
 
