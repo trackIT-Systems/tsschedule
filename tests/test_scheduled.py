@@ -304,3 +304,28 @@ def test_last_known_time_skips_malformed_fake_hwclock(root):
 def test_last_known_time_without_sources(root):
     with pytest.raises(RuntimeError):
         scheduled.last_known_time()
+
+
+# Schedule file
+
+
+def test_schedule_file_with_unquoted_times(local_tz):
+    """YAML 1.1 reads an unquoted 18:00 as the base-60 integer 1080, but 08:00 as a string."""
+    raw = scheduled.load_schedule(
+        io.StringIO("button_delay: 00:10\nschedule:\n- {name: day, start: 08:00, stop: 18:00}\n- {name: late, start: 22:30:15, stop: 23:59}\n")
+    )
+
+    assert raw["button_delay"] == "00:10"
+    assert raw["schedule"] == [
+        {"name": "day", "start": "08:00", "stop": "18:00"},
+        {"name": "late", "start": "22:30:15", "stop": "23:59"},
+    ]
+    sc = ScheduleConfiguration(raw)
+    assert sc.next_shutdown(datetime.datetime(2025, 12, 8, 12, 0, tzinfo=BERLIN)) == datetime.datetime(
+        2025, 12, 8, 18, 0, tzinfo=BERLIN
+    )
+
+
+def test_schedule_file_keeps_other_types():
+    raw = scheduled.load_schedule(io.StringIO("force_on: false\nlat: 54.09\nlon: 8\nname: '18:00'\n"))
+    assert raw == {"force_on": False, "lat": 54.09, "lon": 8, "name": "18:00"}

@@ -18,6 +18,7 @@ import io
 import logging
 import os
 import pathlib
+import re
 import signal
 import threading
 import time
@@ -46,6 +47,27 @@ SHUTDOWN_DELAY_S = 30
 FAKE_HWCLOCK_PATH = pathlib.Path("/etc/fake-hwclock.data")
 TIMESYNC_CLOCK_PATH = pathlib.Path("/var/lib/systemd/timesync/clock")
 CHRONY_DRIFT_PATH = pathlib.Path("/var/lib/chrony/chrony.drift")
+
+
+class ScheduleLoader(yaml.SafeLoader):
+    """YAML loader that reads times like 18:00 as strings.
+
+    YAML 1.1 reads an unquoted 18:00 as the base-60 integer 1080, but 08:00 as a string.
+    """
+
+
+ScheduleLoader.yaml_implicit_resolvers = {
+    first: list(resolvers) for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+for _first in "0123456789":
+    ScheduleLoader.yaml_implicit_resolvers.setdefault(_first, []).insert(
+        0, ("tag:yaml.org,2002:str", re.compile(r"^[0-9]+(?::[0-5]?[0-9])+$"))
+    )
+
+
+def load_schedule(stream) -> dict:
+    """Read a YAML schedule configuration, keeping unquoted times as strings."""
+    return yaml.load(stream, Loader=ScheduleLoader)
 
 
 def fake_hwclock() -> datetime.datetime:
@@ -258,7 +280,7 @@ class PowerManagerDaemon(threading.Thread):
             exit(3)
 
         # read schedule configuration
-        schedule_raw: dict = yaml.safe_load(self._schedule)
+        schedule_raw = load_schedule(self._schedule)
         sc = ScheduleConfiguration(schedule_raw)
 
         if self._device.action_reason in [
