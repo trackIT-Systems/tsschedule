@@ -251,7 +251,6 @@ def test_next_recovery_on_dst_day(now, expected):
 # ButtonEntry
 
 
-@pytest.mark.xfail(strict=True, reason="boot time is recomputed on every call")
 def test_button_entry_boot_ts_is_stable(monkeypatch):
     """Recomputing the boot time drifts with the clocks and can keep next_shutdown() from converging."""
     monotonic = iter(range(1000, 2000))
@@ -261,7 +260,6 @@ def test_button_entry_boot_ts_is_stable(monkeypatch):
     assert entry.boot_ts == entry.boot_ts
 
 
-@pytest.mark.xfail(reason="boot time is recomputed on every call, so results drift")
 def test_button_entry_keeps_system_on(local_tz):
     sc = ScheduleConfiguration({"schedule": [{"name": "e", "start": "22:00", "stop": "23:00"}]})
     entry = ButtonEntry(datetime.timedelta(minutes=10))
