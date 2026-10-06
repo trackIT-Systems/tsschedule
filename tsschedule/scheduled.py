@@ -125,19 +125,19 @@ def last_known_time() -> datetime.datetime:
     # Try to read fake_hwclock
     try:
         clocks.append(fake_hwclock())
-    except (FileNotFoundError, OSError) as e:
+    except (OSError, ValueError) as e:
         logger.debug("Could not read fake_hwclock: %s", e)
 
     # Try to read systemd_timesync_clock
     try:
         clocks.append(systemd_timesync_clock())
-    except (FileNotFoundError, OSError) as e:
+    except OSError as e:
         logger.debug("Could not read systemd_timesync_clock: %s", e)
 
     # Try to read chrony_drift_clock
     try:
         clocks.append(chrony_drift_clock())
-    except (FileNotFoundError, OSError) as e:
+    except OSError as e:
         logger.debug("Could not read chrony_drift_clock: %s", e)
 
     if not clocks:
@@ -252,6 +252,9 @@ class PowerManagerDaemon(threading.Thread):
             sync_path.touch()
         except ValueError:
             logger.error("RTC is unset. Connect to GPS/internet, and wait for timesync")
+            exit(3)
+        except RuntimeError as e:
+            logger.error("Can't check RTC plausibility: %s", e)
             exit(3)
 
         # read schedule configuration

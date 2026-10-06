@@ -241,7 +241,6 @@ def test_run_exits_on_rtc_sysclock_mismatch(daemon, monkeypatch):
     assert exc.value.code == 3
 
 
-@pytest.mark.xfail(strict=True, raises=RuntimeError, reason="a missing clock source crashes the daemon")
 def test_run_exits_without_clock_sources(daemon, root):
     with pytest.raises(SystemExit) as exc:
         daemon.run()
@@ -293,7 +292,6 @@ def test_last_known_time_is_most_recent(root):
     assert scheduled.last_known_time() == timesync
 
 
-@pytest.mark.xfail(strict=True, raises=ValueError, reason="a malformed fake-hwclock file hides the other sources")
 def test_last_known_time_skips_malformed_fake_hwclock(root):
     (root / "etc").mkdir()
     (root / "etc/fake-hwclock.data").write_text("garbage")
