@@ -2,9 +2,7 @@
 name = "tsschedule"
 version = "0.5.0"
 dependencies = [
-    "i2cdevice >=1.0.0",
     "smbus2 >=0.4.2",
-    "gpiozero >=2.0",
     "astral >=3.2",
     "pytimeparse >=1.1.8",
     "pyyaml >=6.0.1",
