@@ -98,7 +98,7 @@ The daemon:
 - Validates RTC time against system clock sources
 - Loads schedule configuration from YAML file
 - Continuously updates startup/shutdown alarms based on schedule
-- Handles manual power-on events with configurable delay
+- Handles manual power-on events and starts outside the schedule with configurable delay
 - Responds to SIGTERM/SIGINT for graceful shutdown
 
 For production use, install as a systemd service. See backend-specific documentation for hardware setup details.
@@ -113,7 +113,7 @@ Key features:
 - **Multiple schedules**: Define multiple overlapping time windows
 - **Astronomical events**: Use `sunrise`, `sunset`, `dawn`, `dusk` with offsets
 - **Force-on mode**: Disable automatic shutdowns when needed
-- **Button delay**: Configure how long to stay on after manual power-on
+- **Button delay**: Configure how long to stay on after manual power-on, or after a start outside the schedule
 
 Example schedule entry:
 ```yaml

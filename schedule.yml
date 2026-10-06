@@ -26,7 +26,7 @@ schedule:
 # set false, to enable schedule (default: false)
 # force_on: false
 
-# shutdown interval after manual powering (default: 00:10 - 10 minutes)
+# shutdown interval after manual powering or a start outside the schedule (default: 00:10 - 10 minutes)
 # button_delay: "00:10"
 
 # brownout recovery: wake on a grid of this period during on-times ("00:00" or absent = disabled)

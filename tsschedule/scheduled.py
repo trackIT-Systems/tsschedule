@@ -40,8 +40,13 @@ parser.add_argument(
 
 logger = logging.getLogger("tsschedule")
 
-# delay before shutting down when started outside of the schedule
-SHUTDOWN_DELAY_S = 30
+# action reasons of a manual start, which keep the system on for the button delay
+MANUAL_START_REASONS = [
+    ActionReason.REASON_NA,
+    ActionReason.BUTTON_CLICK,
+    ActionReason.VOLTAGE_RESTORE,
+    ActionReason.POWER_CONNECTED,
+]
 
 # clock sources to check the RTC against
 FAKE_HWCLOCK_PATH = pathlib.Path("/etc/fake-hwclock.data")
@@ -283,15 +288,7 @@ class PowerManagerDaemon(threading.Thread):
         schedule_raw = load_schedule(self._schedule)
         sc = ScheduleConfiguration(schedule_raw)
 
-        if self._device.action_reason in [
-            ActionReason.REASON_NA,
-            ActionReason.BUTTON_CLICK,
-            ActionReason.VOLTAGE_RESTORE,
-            ActionReason.POWER_CONNECTED,
-        ]:
-            button_entry = ButtonEntry(sc.button_delay)
-            logger.info("Started by %s, adding %s", self._device.action_reason, button_entry)
-            sc.entries.append(button_entry)
+        self._add_button_entry(sc, self._device.rtc_datetime)
 
         while not self._stop.is_set():
             if self._update_alarms(sc, self._device.rtc_datetime):
@@ -302,6 +299,25 @@ class PowerManagerDaemon(threading.Thread):
 
         self._set_termination_alarms(sc)
         logger.info("Bye from tsscheduled")
+
+    def _add_button_entry(self, sc: ScheduleConfiguration, now: datetime.datetime):
+        """Keep the system on for the button delay after a manual start or a start outside of the schedule.
+
+        Args:
+            sc: Schedule configuration to add the ButtonEntry to
+            now: Current time, as read from the RTC
+        """
+        reason = self._device.action_reason
+        if reason in MANUAL_START_REASONS:
+            logger.info("Started by %s", reason)
+        elif not sc.active(now):
+            logger.info("Started by %s outside of the schedule, handling it like a button press", reason)
+        else:
+            return
+
+        button_entry = ButtonEntry(sc.button_delay)
+        logger.info("Adding %s", button_entry)
+        sc.entries.append(button_entry)
 
     def _update_alarms(self, sc: ScheduleConfiguration, now: datetime.datetime) -> bool:
         """Set both alarms from the schedule, and shut down if we shouldn't be running.
@@ -335,13 +351,8 @@ class PowerManagerDaemon(threading.Thread):
             os.system("shutdown 0")
             return True
 
-        # somehow we're here while shouldn't be active, setting shutdown with delay
-        if not sc.active(now):
-            logger.info("Shouldn't be active, scheduling shutdown in %ss", SHUTDOWN_DELAY_S)
-            self._device.set_shutdown_datetime(now + datetime.timedelta(seconds=SHUTDOWN_DELAY_S))
-
         # Check for hardware-specific shutdown triggers (WittyPi only)
-        elif self._device.action_reason in [
+        if self._device.action_reason in [
             ActionReason.ALARM_SHUTDOWN,
             ActionReason.LOW_VOLTAGE,
             ActionReason.OVER_TEMPERATURE,

@@ -13,6 +13,8 @@ While the major version is 0, minor releases may contain breaking changes.
 - **Breaking:** requires `scheduleparse` 2026.10.1.
 - Schedules default to the system timezone with its DST rules instead of a fixed UTC offset.
 - On termination, the next startup is computed from the RTC instead of the system clock.
+- A start outside the schedule keeps the system on for `button_delay`, like a button press,
+  instead of shutting down right away.
 
 ### Fixed
 
@@ -36,6 +38,10 @@ While the major version is 0, minor releases may contain breaking changes.
 - Tests for both backends, schedule edge cases and the daemon, including two-day simulations with
   the WittyPi firmware's alarm handling and the Raspberry Pi 5 wake alarm.
 - CI runs the tests on Python 3.11 to 3.14 and checks that the built wheel installs and runs.
+
+### Removed
+
+- The unused dependencies `i2cdevice` and `gpiozero`.
 
 ## [0.5.0] - 2026-09-17
 

@@ -10,7 +10,7 @@ import pytest
 import yaml
 from conftest import UTC, fake_firmware_tick
 
-from tsschedule import ActionReason, ScheduleConfiguration, scheduled
+from tsschedule import ActionReason, ButtonEntry, ScheduleConfiguration, scheduled
 from tsschedule.backends import wittypi4
 from tsschedule.backends.wittypi4 import WittyPi4
 
@@ -71,6 +71,12 @@ def expected_events(sc, start, end):
     return starts, stops
 
 
+def start_daemon(daemon, sc, now):
+    """Add the ButtonEntry like run() does, with its boot time on the simulated clock."""
+    daemon._add_button_entry(sc, now)
+    sc.entries[-1]._boot_ts = now
+
+
 # Simulations
 
 
@@ -78,10 +84,14 @@ def test_wittypi4_follows_schedule_across_midnight(daemon, bus, sc):
     """Run daemon and firmware for two days; every window must be powered, nothing else (wittypi4#9)."""
     start = datetime.datetime(2025, 12, 8, 20, 0, tzinfo=UTC)  # 21:00 in Berlin
     end = start + datetime.timedelta(days=2)
+    starts, stops = expected_events(sc, start, end)
     boots, shutdowns = [], []
     powered = True
 
+    # started by an alarm, but outside of the schedule
     bus.now = start
+    bus.reg[wittypi4.I2C_ACTION_REASON] = ActionReason.ALARM_STARTUP.value
+    start_daemon(daemon, sc, daemon._device.rtc_datetime)
     while bus.now < end:
         event = fake_firmware_tick(bus)
         if event == "startup" and not powered:
@@ -101,10 +111,9 @@ def test_wittypi4_follows_schedule_across_midnight(daemon, bus, sc):
 
         bus.now += datetime.timedelta(seconds=1)
 
-    starts, stops = expected_events(sc, start, end)
     assert boots == starts
-    # booted outside of the schedule at 21:00, so the first shutdown is immediate
-    assert shutdowns[0] == start
+    # started outside of the schedule at 21:00, so it stays on for the button delay
+    assert shutdowns[0] == start + sc.button_delay
     assert set(shutdowns[1:]) == stops
 
 
@@ -113,9 +122,12 @@ def test_raspberrypi5_follows_schedule_across_midnight(pi5_root, pi5, sc, shutdo
     daemon = scheduled.PowerManagerDaemon(pi5, io.StringIO(SCHEDULE_YML))
     start = datetime.datetime(2025, 12, 8, 20, 0, tzinfo=UTC)  # 21:00 in Berlin
     end = start + datetime.timedelta(days=2)
+    starts, stops = expected_events(sc, start, end)
     boots, shutdowns = [], []
 
     now = start
+    pi5_root.set_rtc(now)
+    start_daemon(daemon, sc, pi5.rtc_datetime)
     while now < end:
         # powered: daemon loop every 60s
         pi5_root.set_rtc(now)
@@ -132,10 +144,9 @@ def test_raspberrypi5_follows_schedule_across_midnight(pi5_root, pi5, sc, shutdo
             continue
         now += datetime.timedelta(seconds=60)
 
-    starts, stops = expected_events(sc, start, end)
     assert boots == starts
-    # booted outside of the schedule at 21:00, so the first shutdown is immediate
-    assert shutdowns[0] == start
+    # started outside of the schedule at 21:00, so it stays on for the button delay
+    assert shutdowns[0] == start + sc.button_delay
     assert set(shutdowns[1:]) == stops
 
 
@@ -177,6 +188,44 @@ def test_update_alarms_when_active(daemon, bus, sc, shutdowns_called):
     assert daemon._device.get_shutdown_datetime() == sc.next_shutdown(now)
     assert daemon._device.get_startup_datetime() == sc.next_startup(now)
     assert shutdowns_called == []
+
+
+@pytest.mark.parametrize(
+    ("reason", "active", "added"),
+    [
+        (ActionReason.REASON_NA, True, True),
+        (ActionReason.BUTTON_CLICK, True, True),
+        (ActionReason.VOLTAGE_RESTORE, False, True),
+        (ActionReason.POWER_CONNECTED, False, True),
+        (ActionReason.ALARM_STARTUP, True, False),
+        (ActionReason.ALARM_STARTUP, False, True),
+        (ActionReason.REBOOT, True, False),
+        (ActionReason.REBOOT, False, True),
+    ],
+)
+def test_button_entry_on_start(daemon, bus, sc, reason, active, added):
+    """Manual starts, and any start outside of the schedule, keep the system on for the button delay."""
+    bus.now = datetime.datetime(2025, 12, 8, 23, 30, tzinfo=UTC) - datetime.timedelta(hours=0 if active else 1)
+    bus.reg[wittypi4.I2C_ACTION_REASON] = reason.value
+    assert sc.active(daemon._device.rtc_datetime) == active
+
+    daemon._add_button_entry(sc, daemon._device.rtc_datetime)
+
+    assert isinstance(sc.entries[-1], ButtonEntry) == added
+
+
+def test_start_outside_schedule_stays_on_for_button_delay(daemon, bus, sc, shutdowns_called):
+    bus.now = datetime.datetime(2025, 12, 8, 22, 30, tzinfo=UTC)  # 23:30 in Berlin
+    bus.reg[wittypi4.I2C_ACTION_REASON] = ActionReason.ALARM_STARTUP.value
+    now = daemon._device.rtc_datetime
+    start_daemon(daemon, sc, now)
+
+    assert not daemon._update_alarms(sc, now)
+    assert daemon._device.get_shutdown_datetime() == now + sc.button_delay
+    assert shutdowns_called == []
+
+    assert daemon._update_alarms(sc, now + sc.button_delay)
+    assert shutdowns_called == ["shutdown 0"]
 
 
 def test_update_alarms_when_inactive(daemon, bus, sc, shutdowns_called):
