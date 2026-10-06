@@ -289,7 +289,7 @@ class WittyPi4(PowerManager):
 
     @staticmethod
     def _to_adj(value: float) -> int:
-        value = int(value * 100)
+        value = round(value * 100)
         if value < 0:
             return value + 255
         else:

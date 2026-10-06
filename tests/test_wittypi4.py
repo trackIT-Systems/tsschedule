@@ -163,7 +163,6 @@ def test_bcd_roundtrip():
     assert bcd2bin(0x23) == 23
 
 
-@pytest.mark.xfail(strict=True, reason="adjustments are truncated instead of rounded")
 @pytest.mark.parametrize("prop", ["adj_vin", "adj_vout", "adj_iout"])
 def test_adjustment_roundtrip(wp, prop):
     for centi in range(-127, 128):
