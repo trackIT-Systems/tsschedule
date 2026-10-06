@@ -8,6 +8,35 @@ While the major version is 0, minor releases may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** requires `scheduleparse` 2026.10.1.
+- Schedules default to the system timezone with its DST rules instead of a fixed UTC offset.
+- On termination, the next startup is computed from the RTC instead of the system clock.
+
+### Fixed
+
+- Schedule windows between local midnight and UTC midnight (e.g. 00:01–01:00 in Europe/Berlin)
+  were evaluated on the wrong day on the Raspberry Pi 5, whose RTC reads UTC, and never woke
+  the system (wittypi4#9).
+- An unknown action reason from newer WittyPi firmware crashed `tsscheduled` at startup; it now
+  maps to `REASON_NA`.
+- A sunrise/sunset schedule entry without a location crashed `tsscheduled` at startup; it is now
+  skipped with a warning.
+- `ButtonEntry` computes the boot time once, so `next_shutdown()` converges.
+- WittyPi voltage and current adjustments (`adj_vin`, `adj_vout`, `adj_iout`) were truncated,
+  writing values 0.01 off.
+- Built wheels contained only metadata and no code.
+- Unquoted times like `18:00` in the schedule file were read as numbers and crashed `tsscheduled`.
+- Without any clock source to check the RTC against, `tsscheduled` crashed; it now exits with
+  code 3. A malformed `/etc/fake-hwclock.data` no longer hides the other clock sources.
+
+### Added
+
+- Tests for both backends, schedule edge cases and the daemon, including two-day simulations with
+  the WittyPi firmware's alarm handling and the Raspberry Pi 5 wake alarm.
+- CI runs the tests on Python 3.11 to 3.14 and checks that the built wheel installs and runs.
+
 ## [0.5.0] - 2026-09-17
 
 ### Removed
