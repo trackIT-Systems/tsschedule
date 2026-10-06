@@ -39,6 +39,14 @@ parser.add_argument(
 
 logger = logging.getLogger("tsschedule")
 
+# delay before shutting down when started outside of the schedule
+SHUTDOWN_DELAY_S = 30
+
+# clock sources to check the RTC against
+FAKE_HWCLOCK_PATH = pathlib.Path("/etc/fake-hwclock.data")
+TIMESYNC_CLOCK_PATH = pathlib.Path("/var/lib/systemd/timesync/clock")
+CHRONY_DRIFT_PATH = pathlib.Path("/var/lib/chrony/chrony.drift")
+
 
 def fake_hwclock() -> datetime.datetime:
     """Read time from fake-hwclock timestamp file.
@@ -52,8 +60,7 @@ def fake_hwclock() -> datetime.datetime:
     Raises:
         FileNotFoundError: If fake-hwclock.data doesn't exist
     """
-    path = pathlib.Path("/etc/fake-hwclock.data")
-    with path.open(encoding="ascii") as fp:
+    with FAKE_HWCLOCK_PATH.open(encoding="ascii") as fp:
         data = fp.read()
 
     ts = datetime.datetime.strptime(data, "%Y-%m-%d %H:%M:%S\n").replace(tzinfo=datetime.timezone.utc).astimezone()
@@ -74,8 +81,7 @@ def systemd_timesync_clock() -> datetime.datetime:
         FileNotFoundError: If timesync clock file doesn't exist
     """
     # get last modification date of /var/lib/systemd/timesync/clock
-    path = pathlib.Path("/var/lib/systemd/timesync/clock")
-    ts = datetime.datetime.fromtimestamp(path.stat().st_mtime).astimezone()
+    ts = datetime.datetime.fromtimestamp(TIMESYNC_CLOCK_PATH.stat().st_mtime).astimezone()
     logger.info("Read systemd_timesync_clock: %s", ts)
     return ts
 
@@ -93,8 +99,7 @@ def chrony_drift_clock() -> datetime.datetime:
         FileNotFoundError: If chrony drift file doesn't exist
     """
     # get last modification date of /var/lib/chrony/chrony.drift
-    path = pathlib.Path("/var/lib/chrony/chrony.drift")
-    ts = datetime.datetime.fromtimestamp(path.stat().st_mtime).astimezone()
+    ts = datetime.datetime.fromtimestamp(CHRONY_DRIFT_PATH.stat().st_mtime).astimezone()
     logger.info("Read chrony_drift_clock: %s", ts)
     return ts
 
@@ -263,50 +268,67 @@ class PowerManagerDaemon(threading.Thread):
             logger.info("Started by %s, adding %s", self._device.action_reason, button_entry)
             sc.entries.append(button_entry)
 
-        shutdown_delay_s = 30
-
         while not self._stop.is_set():
-            now = self._device.rtc_datetime
-            next_startup = sc.next_startup(now)
-            next_recovery = sc.next_recovery(now)
-            effective_startup = _effective_startup(sc, now)
-            next_shutdown = sc.next_shutdown(now)
-
-            logger.info(
-                "Setting next_shutdown: %s, next_startup: %s, next_recovery: %s, effective_startup: %s",
-                next_shutdown,
-                next_startup,
-                next_recovery,
-                effective_startup,
-            )
-            self._device.set_startup_datetime(effective_startup)
-            self._device.set_shutdown_datetime(next_shutdown)
-
-            # Check if shutdown time has arrived
-            shutdown_dt = self._device.get_shutdown_datetime()
-            if shutdown_dt and shutdown_dt <= now:
-                logger.warning("Shutdown time has arrived, shutting down")
-                os.system("shutdown 0")
-                break
-
-            # somehow we're here while shouldn't be active, setting shutdown with delay
-            if not sc.active(now):
-                logger.info("Shouldn't be active, scheduling shutdown in %ss", shutdown_delay_s)
-                self._device.set_shutdown_datetime(now + datetime.timedelta(seconds=shutdown_delay_s))
-
-            # Check for hardware-specific shutdown triggers (WittyPi only)
-            elif self._device.action_reason in [
-                ActionReason.ALARM_SHUTDOWN,
-                ActionReason.LOW_VOLTAGE,
-                ActionReason.OVER_TEMPERATURE,
-            ]:
-                logger.warning("Alarm %s fired, shutting down", self._device.action_reason)
-                os.system("shutdown 0")
+            if self._update_alarms(sc, self._device.rtc_datetime):
                 break
 
             # wait for 60s or until signal
             self._stop.wait(60)
 
+        self._set_termination_alarms(sc)
+        logger.info("Bye from tsscheduled")
+
+    def _update_alarms(self, sc: ScheduleConfiguration, now: datetime.datetime) -> bool:
+        """Set both alarms from the schedule, and shut down if we shouldn't be running.
+
+        Args:
+            sc: Schedule configuration to follow
+            now: Current time, as read from the RTC
+
+        Returns:
+            True if a shutdown was triggered.
+        """
+        next_startup = sc.next_startup(now)
+        next_recovery = sc.next_recovery(now)
+        effective_startup = _effective_startup(sc, now)
+        next_shutdown = sc.next_shutdown(now)
+
+        logger.info(
+            "Setting next_shutdown: %s, next_startup: %s, next_recovery: %s, effective_startup: %s",
+            next_shutdown,
+            next_startup,
+            next_recovery,
+            effective_startup,
+        )
+        self._device.set_startup_datetime(effective_startup)
+        self._device.set_shutdown_datetime(next_shutdown)
+
+        # Check if shutdown time has arrived
+        shutdown_dt = self._device.get_shutdown_datetime()
+        if shutdown_dt and shutdown_dt <= now:
+            logger.warning("Shutdown time has arrived, shutting down")
+            os.system("shutdown 0")
+            return True
+
+        # somehow we're here while shouldn't be active, setting shutdown with delay
+        if not sc.active(now):
+            logger.info("Shouldn't be active, scheduling shutdown in %ss", SHUTDOWN_DELAY_S)
+            self._device.set_shutdown_datetime(now + datetime.timedelta(seconds=SHUTDOWN_DELAY_S))
+
+        # Check for hardware-specific shutdown triggers (WittyPi only)
+        elif self._device.action_reason in [
+            ActionReason.ALARM_SHUTDOWN,
+            ActionReason.LOW_VOLTAGE,
+            ActionReason.OVER_TEMPERATURE,
+        ]:
+            logger.warning("Alarm %s fired, shutting down", self._device.action_reason)
+            os.system("shutdown 0")
+            return True
+
+        return False
+
+    def _set_termination_alarms(self, sc: ScheduleConfiguration):
+        """Clear the shutdown alarm and set the next startup before powering off."""
         self._device.set_shutdown_datetime(None)
         self._device.set_startup_datetime(_effective_startup(sc))
         logger.info(
@@ -314,7 +336,6 @@ class PowerManagerDaemon(threading.Thread):
             self._device.get_shutdown_datetime(),
             self._device.get_startup_datetime(),
         )
-        logger.info("Bye from tsscheduled")
 
 
 def main():

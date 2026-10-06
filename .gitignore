@@ -1,2 +1,3 @@
-wittypi4.egg-info
+*.egg-info
 pdm.lock
+.coverage

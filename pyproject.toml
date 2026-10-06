@@ -17,3 +17,12 @@ py-modules = ["tsschedule"]
 
 [project.scripts]
 tsscheduled = "tsschedule.scheduled:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-cov",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
