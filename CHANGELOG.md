@@ -10,7 +10,7 @@ While the major version is 0, minor releases may contain breaking changes.
 
 ### Changed
 
-- **Breaking:** requires `scheduleparse` 2026.10.1.
+- **Breaking:** requires `scheduleparse` 2026.10.2.
 - Schedules default to the system timezone with its DST rules instead of a fixed UTC offset.
 - On termination, the next startup is computed from the RTC instead of the system clock.
 - A start outside the schedule keeps the system on for `button_delay`, like a button press,
@@ -25,6 +25,8 @@ While the major version is 0, minor releases may contain breaking changes.
   maps to `REASON_NA`.
 - A sunrise/sunset schedule entry without a location crashed `tsscheduled` at startup; it is now
   skipped with a warning.
+- A bare sun event without an offset (e.g. `start: sunrise`) resolved to midnight; it now
+  resolves to the event. Previously only `sunrise+00:00` worked.
 - `ButtonEntry` computes the boot time once, so `next_shutdown()` converges.
 - WittyPi voltage and current adjustments (`adj_vin`, `adj_vout`, `adj_iout`) were truncated,
   writing values 0.01 off.

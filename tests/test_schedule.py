@@ -8,6 +8,8 @@ takes the calendar date from a UTC timestamp picks the wrong day (wittypi4#9).
 import datetime
 import zoneinfo
 
+import astral
+import astral.sun
 import pytest
 from conftest import UTC
 
@@ -128,21 +130,31 @@ def test_force_on(tz):
     assert sc.next_shutdown(now) is None
 
 
-def test_sun_entry_without_location_is_skipped(local_tz):
+SUN_ENTRIES = {
+    "offset": {"name": "sun", "start": "sunrise-01:00", "stop": "sunset+01:00"},
+    "bare": {"name": "sun", "start": "sunrise", "stop": "sunset"},
+}
+
+
+@pytest.mark.parametrize("entry", SUN_ENTRIES.values(), ids=SUN_ENTRIES.keys())
+def test_sun_entry_without_location_is_skipped(local_tz, entry):
     """Sun-relative times only fail once evaluated, so they must be checked when loading."""
-    sc = ScheduleConfiguration(
-        {"schedule": [{"name": "sun", "start": "sunrise-01:00", "stop": "sunset+01:00"}, {"name": "e", "start": "22:00", "stop": "23:00"}]}
-    )
+    sc = ScheduleConfiguration({"schedule": [entry, {"name": "e", "start": "22:00", "stop": "23:00"}]})
     assert [e.name for e in sc.entries] == ["e"]
 
 
-def test_sun_entry_with_location():
+@pytest.mark.parametrize(("start", "stop"), [("sunrise", "sunset"), ("sunrise+00:00", "sunset-00:00")], ids=["bare", "offset"])
+def test_sun_entry_with_location(start, stop):
+    """A bare sun event resolves to the event itself, not to midnight."""
     sc = ScheduleConfiguration(
-        {"tz": "Europe/Berlin", "lat": 50.8, "lon": 8.77, "schedule": [{"name": "day", "start": "sunrise+00:00", "stop": "sunset-00:00"}]}
+        {"tz": "Europe/Berlin", "lat": 50.8, "lon": 8.77, "schedule": [{"name": "day", "start": start, "stop": stop}]}
     )
     noon = datetime.datetime(2025, 12, 8, 12, 0, tzinfo=BERLIN)
+    sunset = astral.sun.sunset(astral.Observer(50.8, 8.77), date=noon.date(), tzinfo=BERLIN)
+
     assert sc.active(noon)
-    assert sc.next_shutdown(noon).date() == noon.date()
+    assert sc.next_shutdown(noon) == sunset
+    assert sc.next_startup(noon) == astral.sun.sunrise(astral.Observer(50.8, 8.77), date=datetime.date(2025, 12, 9), tzinfo=BERLIN)
 
 
 def test_location_from_geolocation_file(monkeypatch):
