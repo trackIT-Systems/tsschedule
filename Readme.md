@@ -1,6 +1,12 @@
 tsOS Schedule Daemon (tsschedule)
 ---
 
+[![Test](https://github.com/trackIT-Systems/tsschedule/actions/workflows/test.yml/badge.svg)](https://github.com/trackIT-Systems/tsschedule/actions/workflows/test.yml)
+[![Release](https://github.com/trackIT-Systems/tsschedule/actions/workflows/release.yml/badge.svg)](https://github.com/trackIT-Systems/tsschedule/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/trackIT-Systems/tsschedule)](https://github.com/trackIT-Systems/tsschedule/releases/latest)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+
 This repository provides a schedule-based power management daemon for tsOS, supporting multiple hardware backends including WittyPi 4 and Raspberry Pi 5.
 
 tsschedule enables automated power management based on time-based schedules, supporting:
@@ -9,14 +15,23 @@ tsschedule enables automated power management based on time-based schedules, sup
 - Multiple overlapping schedule entries
 - Manual power-on with configurable delay
 - Real-time clock (RTC) integration for scheduled wake-ups
+- Brownout recovery: periodic wake-ups during scheduled on-times
 
 # Installation
 
-Install the library using pip or pdm:
+Install a release from GitHub; the wheel and source package are attached to each [release](https://github.com/trackIT-Systems/tsschedule/releases):
+
+```bash
+pip install git+https://github.com/trackIT-Systems/tsschedule.git@v0.6.0
+```
+
+Requires Python 3.11 or newer. On a WittyPi 4, the RTC kernel driver comes from the separate [wittypi4](https://github.com/trackIT-Systems/wittypi4) package, see [WittyPi 4 Setup](docs/WittyPi4.md).
+
+For development, install from a checkout:
 
 ```bash
 # Using pip
-pip install -e .
+pip install --group dev -e .
 
 # Using pdm
 pdm install
@@ -111,9 +126,10 @@ Key features:
 - **Location-based**: Configure latitude/longitude for astronomical calculations
 - **Timezone**: Configure timezone (e.g., "Europe/Berlin") for schedule calculations (optional, defaults to system timezone)
 - **Multiple schedules**: Define multiple overlapping time windows
-- **Astronomical events**: Use `sunrise`, `sunset`, `dawn`, `dusk` with offsets
+- **Astronomical events**: Use `sunrise`, `sunset`, `dawn`, `dusk`, optionally with offsets (e.g. `sunrise-01:00`)
 - **Force-on mode**: Disable automatic shutdowns when needed
 - **Button delay**: Configure how long to stay on after manual power-on, or after a start outside the schedule
+- **Brownout recovery**: With `recovery_interval`, the device also wakes on a fixed grid during scheduled on-times, so it comes back after losing power mid-run
 
 Example schedule entry:
 ```yaml
@@ -126,6 +142,16 @@ schedule:
     stop: sunset+01:00
 ```
 
+## Development
+
+The tests run without hardware, against an in-memory WittyPi 4 and fake Raspberry Pi 5 system files:
+
+```bash
+pytest
+```
+
+CI runs them on Python 3.11 to 3.14 for every push. To release, move the `[Unreleased]` notes in [CHANGELOG.md](CHANGELOG.md) to a new version section, set the same version in `pyproject.toml`, and push a tag like `v0.7.0`. The release workflow runs the tests, builds the package and creates a GitHub release with the notes from the changelog.
+
 ## Documentation
 
 For complete information, see:
@@ -133,3 +159,4 @@ For complete information, see:
 - [WittyPi 4 Setup](docs/WittyPi4.md) - Hardware-specific setup for WittyPi 4 power management board
 - [Raspberry Pi 5 Setup](docs/RaspberryPi5.md) - Hardware-specific setup for Raspberry Pi 5 with built-in RTC
 - [schedule.yml](schedule.yml) - Example schedule configuration
+- [CHANGELOG.md](CHANGELOG.md) - Changes in each release
