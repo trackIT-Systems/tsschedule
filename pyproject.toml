@@ -1,6 +1,6 @@
 [project]
 name = "tsschedule"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
     "smbus2 >=0.4.2",
     "astral >=3.2",
