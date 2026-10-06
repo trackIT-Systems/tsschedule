@@ -44,8 +44,6 @@ schedule:
 - {name: day, start: '08:00', stop: '18:00'}
 """
 
-BUG_TERMINATION = pytest.mark.xfail(strict=True, reason="termination takes the next startup from the system clock")
-
 
 @pytest.fixture
 def shutdowns_called(monkeypatch):
@@ -76,7 +74,6 @@ def expected_events(sc, start, end):
 # Simulations
 
 
-@BUG_TERMINATION
 def test_wittypi4_follows_schedule_across_midnight(daemon, bus, sc):
     """Run daemon and firmware for two days; every window must be powered, nothing else (wittypi4#9)."""
     start = datetime.datetime(2025, 12, 8, 20, 0, tzinfo=UTC)  # 21:00 in Berlin
@@ -111,7 +108,6 @@ def test_wittypi4_follows_schedule_across_midnight(daemon, bus, sc):
     assert set(shutdowns[1:]) == stops
 
 
-@BUG_TERMINATION
 def test_raspberrypi5_follows_schedule_across_midnight(pi5_root, pi5, sc, shutdowns_called):
     """Same as for the WittyPi 4; the Pi 5 RTC reads UTC and the daemon triggers the shutdowns itself."""
     daemon = scheduled.PowerManagerDaemon(pi5, io.StringIO(SCHEDULE_YML))
@@ -219,7 +215,6 @@ def test_update_alarms_after_shutdown_alarm(daemon, bus, sc, shutdowns_called, r
     assert shutdowns_called == (["shutdown 0"] if shutdown else [])
 
 
-@BUG_TERMINATION
 def test_termination_sets_next_startup_from_rtc(daemon, bus, sc):
     bus.now = datetime.datetime(2025, 12, 8, 22, 0, 30, tzinfo=UTC)  # 23:00:30 in Berlin
 

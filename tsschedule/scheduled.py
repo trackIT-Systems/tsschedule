@@ -330,7 +330,7 @@ class PowerManagerDaemon(threading.Thread):
     def _set_termination_alarms(self, sc: ScheduleConfiguration):
         """Clear the shutdown alarm and set the next startup before powering off."""
         self._device.set_shutdown_datetime(None)
-        self._device.set_startup_datetime(_effective_startup(sc))
+        self._device.set_startup_datetime(_effective_startup(sc, self._device.rtc_datetime))
         logger.info(
             "Terminating, set ScheduleConfiguration shutdown: %s, startup: %s",
             self._device.get_shutdown_datetime(),
