@@ -3,6 +3,7 @@ tsOS Schedule Daemon (tsschedule)
 
 [![Test](https://github.com/trackIT-Systems/tsschedule/actions/workflows/test.yml/badge.svg)](https://github.com/trackIT-Systems/tsschedule/actions/workflows/test.yml)
 [![Release](https://github.com/trackIT-Systems/tsschedule/actions/workflows/release.yml/badge.svg)](https://github.com/trackIT-Systems/tsschedule/actions/workflows/release.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/trackIT-Systems/tsschedule/badges/coverage.json)](https://github.com/trackIT-Systems/tsschedule/actions/workflows/coverage-badge.yml)
 [![Latest release](https://img.shields.io/github/v/release/trackIT-Systems/tsschedule)](https://github.com/trackIT-Systems/tsschedule/releases/latest)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
