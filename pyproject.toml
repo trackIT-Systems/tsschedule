@@ -1,6 +1,6 @@
 [project]
 name = "tsschedule"
-version = "0.2"
+version = "0.5.0"
 dependencies = [
     "i2cdevice >=1.0.0",
     "smbus2 >=0.4.2",
