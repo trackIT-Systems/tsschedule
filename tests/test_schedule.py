@@ -128,7 +128,6 @@ def test_force_on(tz):
     assert sc.next_shutdown(now) is None
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason="sun entries without location fail on evaluation")
 def test_sun_entry_without_location_is_skipped(local_tz):
     """Sun-relative times only fail once evaluated, so they must be checked when loading."""
     sc = ScheduleConfiguration(
