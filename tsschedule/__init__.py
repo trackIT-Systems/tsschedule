@@ -40,7 +40,7 @@ import astral
 import astral.sun
 import pytimeparse
 import smbus2
-from scheduleparse import ScheduleEntry
+from scheduleparse import ScheduleEntry, local_tz
 
 __version__ = importlib.metadata.version(__name__)
 
@@ -207,9 +207,8 @@ class ButtonEntry(ScheduleEntry):
         button_delay: datetime.timedelta | None,
         tz: datetime.tzinfo = None,
     ):
-        # get local timezone
         if not tz:
-            tz = datetime.datetime.now().astimezone().tzinfo
+            tz = local_tz()
 
         self.button_delay = button_delay
         self._tz = tz
@@ -310,9 +309,9 @@ class ScheduleConfiguration:
                 logger.info("Using timezone from config: %s", config["tz"])
             except Exception as e:
                 logger.warning("Invalid timezone '%s' in config: %s, using system timezone", config["tz"], e)
-                tz = datetime.datetime.now().astimezone().tzinfo
+                tz = local_tz()
         else:
-            tz = datetime.datetime.now().astimezone().tzinfo
+            tz = local_tz()
 
         self._tz = tz
 

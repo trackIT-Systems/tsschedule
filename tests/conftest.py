@@ -3,7 +3,6 @@
 import datetime
 import struct
 import time
-import zoneinfo
 
 import pytest
 
@@ -14,14 +13,6 @@ from tsschedule.backends.raspberrypi5 import RaspberryPi5
 from tsschedule.backends.wittypi4 import WittyPi4
 
 UTC = datetime.UTC
-
-# known bug, fixed in a following commit: the default tz is today's fixed UTC offset, so tests
-# with dates in Berlin winter time fail while summer time is in effect, and vice versa
-BUG_FIXED_OFFSET = pytest.mark.xfail(
-    datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Berlin")).utcoffset() != datetime.timedelta(hours=1),
-    strict=True,
-    reason="default tz is a fixed UTC offset without DST rules",
-)
 
 ALARM1_BASE = wittypi4.I2C_CONF_SECOND_ALARM1
 ALARM2_BASE = wittypi4.I2C_CONF_SECOND_ALARM2

@@ -32,10 +32,6 @@ def sc(tz):
     return ScheduleConfiguration(CONFIG | {"tz": tz.key})
 
 
-# known bugs, fixed in the following commits
-BUG_FIXED_OFFSET = pytest.mark.xfail(strict=True, reason="default tz is a fixed UTC offset without DST rules")
-
-
 def local(tz, day, hour, minute, second=0):
     return datetime.datetime(2025, 12, day, hour, minute, second, tzinfo=tz)
 
@@ -85,11 +81,8 @@ def test_results_independent_of_now_timezone(sc, tz):
     ],
     ids=["summer", "winter"],
 )
-def test_default_timezone_follows_dst(request, local_tz, now, startup):
+def test_default_timezone_follows_dst(local_tz, now, startup):
     """Without an explicit tz the system zone is used, including its DST rules."""
-    # the fixed offset is taken from today, so only the other season fails
-    if datetime.datetime.now(BERLIN).utcoffset() != startup.utcoffset():
-        request.applymarker(BUG_FIXED_OFFSET)
     sc = ScheduleConfiguration({"schedule": [{"name": "evening", "start": "22:00", "stop": "23:00"}]})
 
     assert sc.next_startup(now) == startup
@@ -103,11 +96,10 @@ def test_tz_from_config(local_tz):
     assert sc.next_startup(now) == datetime.datetime(2025, 12, 1, 22, 0, tzinfo=zoneinfo.ZoneInfo("America/New_York"))
 
 
-@BUG_FIXED_OFFSET
 def test_invalid_tz_falls_back_to_system(local_tz):
     sc = ScheduleConfiguration({"tz": "Mars/Olympus_Mons", "schedule": [{"name": "e", "start": "22:00", "stop": "23:00"}]})
 
-    for month in (1, 7):  # one of them differs from today's offset
+    for month in (1, 7):  # winter and summer time
         now = datetime.datetime(2025, month, 1, 12, 0, tzinfo=UTC)
         assert sc.next_startup(now) == datetime.datetime(2025, month, 1, 22, 0, tzinfo=BERLIN)
 

@@ -8,7 +8,7 @@ import zoneinfo
 
 import pytest
 import yaml
-from conftest import BUG_FIXED_OFFSET, UTC, fake_firmware_tick
+from conftest import UTC, fake_firmware_tick
 
 from tsschedule import ActionReason, ScheduleConfiguration, scheduled
 from tsschedule.backends import wittypi4
@@ -76,7 +76,6 @@ def expected_events(sc, start, end):
 # Simulations
 
 
-@BUG_FIXED_OFFSET
 @BUG_TERMINATION
 def test_wittypi4_follows_schedule_across_midnight(daemon, bus, sc):
     """Run daemon and firmware for two days; every window must be powered, nothing else (wittypi4#9)."""
@@ -112,7 +111,6 @@ def test_wittypi4_follows_schedule_across_midnight(daemon, bus, sc):
     assert set(shutdowns[1:]) == stops
 
 
-@BUG_FIXED_OFFSET
 @BUG_TERMINATION
 def test_raspberrypi5_follows_schedule_across_midnight(pi5_root, pi5, sc, shutdowns_called):
     """Same as for the WittyPi 4; the Pi 5 RTC reads UTC and the daemon triggers the shutdowns itself."""
@@ -162,7 +160,6 @@ def test_recovery_after_brownout(bus, local_tz, shutdowns_called):
     assert boot == datetime.datetime(2025, 12, 8, 10, 30, tzinfo=BERLIN)
 
 
-@BUG_FIXED_OFFSET
 def test_no_recovery_wake_during_off_time(daemon, bus, local_tz):
     sc = ScheduleConfiguration(yaml.safe_load(RECOVERY_YML))
     bus.now = datetime.datetime(2025, 12, 8, 16, 50, tzinfo=UTC)  # 17:50 in Berlin, the last grid point is inside the guard
@@ -175,7 +172,6 @@ def test_no_recovery_wake_during_off_time(daemon, bus, local_tz):
 # Loop steps
 
 
-@BUG_FIXED_OFFSET
 def test_update_alarms_when_active(daemon, bus, sc, shutdowns_called):
     bus.now = datetime.datetime(2025, 12, 8, 23, 30, tzinfo=UTC)  # 00:30 in Berlin
     now = daemon._device.rtc_datetime
@@ -187,7 +183,6 @@ def test_update_alarms_when_active(daemon, bus, sc, shutdowns_called):
     assert shutdowns_called == []
 
 
-@BUG_FIXED_OFFSET
 def test_update_alarms_when_inactive(daemon, bus, sc, shutdowns_called):
     """Outside of the schedule, next_shutdown() is now, so the daemon shuts down right away."""
     bus.now = datetime.datetime(2025, 12, 8, 23, 30, 15, tzinfo=UTC) - datetime.timedelta(hours=1)  # 23:30 Berlin
@@ -199,7 +194,6 @@ def test_update_alarms_when_inactive(daemon, bus, sc, shutdowns_called):
     assert shutdowns_called == ["shutdown 0"]
 
 
-@BUG_FIXED_OFFSET
 def test_update_alarms_shuts_down_when_shutdown_time_arrived(daemon, bus, sc, shutdowns_called):
     bus.now = datetime.datetime(2025, 12, 9, 0, 0, tzinfo=UTC)  # 01:00 in Berlin, end of a window
 
@@ -213,8 +207,8 @@ def test_update_alarms_shuts_down_when_shutdown_time_arrived(daemon, bus, sc, sh
         (ActionReason.ALARM_SHUTDOWN, True),
         (ActionReason.LOW_VOLTAGE, True),
         (ActionReason.OVER_TEMPERATURE, True),
-        pytest.param(ActionReason.ALARM_STARTUP, False, marks=BUG_FIXED_OFFSET),
-        pytest.param(ActionReason.BUTTON_CLICK, False, marks=BUG_FIXED_OFFSET),
+        (ActionReason.ALARM_STARTUP, False),
+        (ActionReason.BUTTON_CLICK, False),
     ],
 )
 def test_update_alarms_after_shutdown_alarm(daemon, bus, sc, shutdowns_called, reason, shutdown):
@@ -225,7 +219,6 @@ def test_update_alarms_after_shutdown_alarm(daemon, bus, sc, shutdowns_called, r
     assert shutdowns_called == (["shutdown 0"] if shutdown else [])
 
 
-@BUG_FIXED_OFFSET
 @BUG_TERMINATION
 def test_termination_sets_next_startup_from_rtc(daemon, bus, sc):
     bus.now = datetime.datetime(2025, 12, 8, 22, 0, 30, tzinfo=UTC)  # 23:00:30 in Berlin
