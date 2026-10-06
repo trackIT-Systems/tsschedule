@@ -40,6 +40,8 @@ While the major version is 0, minor releases may contain breaking changes.
 - Tests for both backends, schedule edge cases and the daemon, including two-day simulations with
   the WittyPi firmware's alarm handling and the Raspberry Pi 5 wake alarm.
 - CI runs the tests on Python 3.11 to 3.14 and checks that the built wheel installs and runs.
+- Pushing a version tag (e.g. `v0.6.0`) runs the tests, builds the package and creates a GitHub
+  release with the notes from this changelog and the built package attached.
 
 ### Removed
 
