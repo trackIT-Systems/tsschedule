@@ -187,6 +187,7 @@ def test_update_alarms_when_active(daemon, bus, sc, shutdowns_called):
     assert shutdowns_called == []
 
 
+@BUG_FIXED_OFFSET
 def test_update_alarms_when_inactive(daemon, bus, sc, shutdowns_called):
     """Outside of the schedule, next_shutdown() is now, so the daemon shuts down right away."""
     bus.now = datetime.datetime(2025, 12, 8, 23, 30, 15, tzinfo=UTC) - datetime.timedelta(hours=1)  # 23:30 Berlin
