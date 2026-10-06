@@ -231,7 +231,6 @@ def test_action_reason_known(wp, bus, reason):
     assert wp.action_reason is reason
 
 
-@pytest.mark.xfail(strict=True, reason="unknown action reasons raise TypeError")
 @pytest.mark.parametrize("value", [0x09, 0x0D, 0xFF])
 def test_action_reason_unknown(wp, bus, value):
     bus.reg[wittypi4.I2C_ACTION_REASON] = value
