@@ -7,6 +7,7 @@ import smbus2
 from . import detect_hardware
 from .backends.raspberrypi5 import RaspberryPi5
 from .backends.wittypi4 import WittyPi4, WittyPiException
+from .journal import log_handler
 
 logger = logging.getLogger("tsschedule")
 
@@ -32,9 +33,9 @@ if __name__ == "__main__":
 
     # configure logging
     logging_level = max(0, logging.WARN - (args.verbose * 10))
-    logging_stderr = logging.StreamHandler()
-    logging_stderr.setLevel(logging_level)
-    logging.basicConfig(level=logging.DEBUG, handlers=[logging_stderr])
+    logging_handler = log_handler("tsschedule")
+    logging_handler.setLevel(logging_level)
+    logging.basicConfig(level=logging.DEBUG, handlers=[logging_handler])
 
     # Detect hardware
     hardware_type = detect_hardware()

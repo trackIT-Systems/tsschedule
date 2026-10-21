@@ -8,6 +8,12 @@ While the major version is 0, minor releases may contain breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- Under systemd, `tsscheduled` logs to the journal with each message's syslog priority,
+  `SYSLOG_IDENTIFIER` `tsscheduled` and `CODE_FILE`/`CODE_LINE`/`CODE_FUNC`. Previously every
+  line was stored as info. On a terminal, lines are written as `<LEVEL> <logger>: <message>`.
+
 ## [0.6.0] - 2026-10-06
 
 ### Changed

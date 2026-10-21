@@ -31,6 +31,7 @@ from .backends.base import PowerManager
 from .backends.raspberrypi5 import RaspberryPi5
 from .backends.wittypi4 import WittyPi4, WittyPiException
 from .__main__ import parser
+from .journal import log_handler
 
 parser.prog = "tsscheduled"
 parser.usage = "daemon to configure and handle schedule-based power management"
@@ -389,9 +390,9 @@ def main():
 
     # configure logging
     logging_level = max(0, logging.WARN - (args.verbose * 10))
-    logging_stderr = logging.StreamHandler()
-    logging_stderr.setLevel(logging_level)
-    logging.basicConfig(level=logging.DEBUG, handlers=[logging_stderr])
+    logging_handler = log_handler("tsscheduled")
+    logging_handler.setLevel(logging_level)
+    logging.basicConfig(level=logging.DEBUG, handlers=[logging_handler])
 
     # Detect hardware
     hardware_type = detect_hardware()
