@@ -1,6 +1,7 @@
 """Tests for hardware detection."""
 
 import datetime
+import logging
 
 import pytest
 from conftest import UTC, FakeBus
@@ -39,3 +40,11 @@ def test_wrong_firmware_id_is_not_wittypi4(monkeypatch, no_i2c):
 def test_nothing_detected(monkeypatch, no_i2c):
     monkeypatch.setattr(tsschedule.pathlib.Path, "exists", lambda self: False)
     assert detect_hardware() is None
+
+
+def test_nothing_detected_is_left_to_the_caller(monkeypatch, no_i2c, caplog):
+    """The caller logs the error and exits; detect_hardware() itself only logs at DEBUG."""
+    caplog.set_level(logging.DEBUG)
+    monkeypatch.setattr(tsschedule.pathlib.Path, "exists", lambda self: False)
+    assert detect_hardware() is None
+    assert all(r.levelno == logging.DEBUG for r in caplog.records)

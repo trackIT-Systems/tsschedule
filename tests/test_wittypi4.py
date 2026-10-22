@@ -1,6 +1,7 @@
 """Tests for the WittyPi 4 backend against an in-memory bus."""
 
 import datetime
+import logging
 import time
 import zoneinfo
 
@@ -234,3 +235,41 @@ def test_action_reason_known(wp, bus, reason):
 def test_action_reason_unknown(wp, bus, value):
     bus.reg[wittypi4.I2C_ACTION_REASON] = value
     assert wp.action_reason is ActionReason.REASON_NA
+
+
+# Logging
+
+
+@pytest.mark.parametrize(("alarm", "setter"), [("Startup", "set_startup_datetime"), ("Shutdown", "set_shutdown_datetime")])
+def test_alarm_in_past_warned_once(wp, bus, caplog, alarm, setter):
+    """The daemon sets the alarms every minute; a time in the past is warned about once until it is resolved."""
+    caplog.set_level(logging.DEBUG, logger="tsschedule")
+    past = bus.now - datetime.timedelta(hours=1)
+
+    for _ in range(3):
+        getattr(wp, setter)(past)
+        bus.now += datetime.timedelta(minutes=1)
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [f"{alarm} time is in the past: {past}"]
+    assert len([r for r in caplog.records if r.levelno == logging.DEBUG and "still in the past" in r.getMessage()]) == 2
+
+    getattr(wp, setter)(bus.now + datetime.timedelta(hours=1))
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.INFO][-1].startswith(
+        f"{alarm} time is no longer in the past"
+    )
+
+    # a new occurrence is warned about again
+    getattr(wp, setter)(past)
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 2
+
+
+def test_alarm_in_past_ends_when_cleared(wp, bus, caplog):
+    caplog.set_level(logging.DEBUG, logger="tsschedule")
+    wp.set_shutdown_datetime(bus.now - datetime.timedelta(hours=1))
+    wp.set_shutdown_datetime(None)
+    wp.set_shutdown_datetime(bus.now - datetime.timedelta(hours=1))
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 2
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.INFO][-1] == (
+        "Shutdown alarm cleared, its time is no longer in the past"
+    )

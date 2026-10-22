@@ -44,7 +44,7 @@ from scheduleparse import ScheduleEntry, local_tz
 
 __version__ = importlib.metadata.version(__name__)
 
-logger = logging.getLogger("tsschedule")
+logger = logging.getLogger(__name__)
 
 # Device Address (WittyPi 4 specific, but kept for compatibility)
 I2C_MC_ADDRESS = 0x08
@@ -119,7 +119,7 @@ class ActionReason(enum.Enum):
     @classmethod
     def _missing_(cls, value: object) -> "ActionReason":
         if isinstance(value, int):
-            logger.warning("ActionReason %i is unknown!", value)
+            logger.warning("Unknown action reason %i, using REASON_NA", value)
             return cls.REASON_NA
         else:
             # For non-integer values, raise a ValueError
@@ -316,7 +316,7 @@ class ScheduleConfiguration:
 
         self._tz = tz
 
-        logger.debug(config)
+        logger.debug("Schedule configuration: %s", config)
 
         # parsing location information
         self._location: astral.LocationInfo | None = None
@@ -334,7 +334,7 @@ class ScheduleConfiguration:
 
         if not self._location:
             logger.warning(
-                "No location configured (neither lat/lon in config nor /etc/geolocation), relative schedules are disabled."
+                "No location configured (neither lat/lon in config nor /etc/geolocation), relative schedules are disabled"
             )
 
         self.force_on: bool = False
@@ -371,9 +371,11 @@ class ScheduleConfiguration:
                 logger.info("Recovery guard interval: %s", self.recovery_guard)
 
         self.entries: list[ScheduleEntry] = []
+        # whether the last next_shutdown() found no stop events, to log it once per change
+        self._no_stop_events = False
 
         if "schedule" not in config or not isinstance(config["schedule"], collections.abc.Iterable):
-            logger.warning("Schedule missing in configuration, setting force_on.")
+            logger.warning("Schedule missing in configuration, setting force_on")
             self.force_on = True
         else:
             for entry_raw in config["schedule"]:
@@ -386,17 +388,18 @@ class ScheduleConfiguration:
                 except (AssertionError, AttributeError):
                     logger.warning("Schedule doesn't contain lat/lon information, ignoring %s", entry_raw)
             if not self.entries:
-                logger.warning("No schedules found, setting force_on.")
+                logger.warning("No schedule entries found, setting force_on")
                 self.force_on = True
 
         logger.info(
-            "ScheduleConfiguration loaded - active: %s, next_shutdown: %s, next_startup: %s",
+            "Schedule loaded with %d entries, active: %s, next shutdown: %s, next startup: %s",
+            len(self.entries),
             self.active(),
             self.next_shutdown(),
             self.next_startup(),
         )
         for entry in self.entries:
-            logger.info("%s", entry)
+            logger.debug("Schedule entry: %s", entry)
 
     def next_startup(self, now: datetime.datetime | None = None) -> datetime.datetime | None:
         """Calculate the next scheduled startup time.
@@ -458,6 +461,7 @@ class ScheduleConfiguration:
         if self.force_on:
             return None
 
+        no_stop_events = False
         try:
             next_ts = now
             while self.active(next_ts):
@@ -473,7 +477,7 @@ class ScheduleConfiguration:
                         stop_list.append(e_stop)
 
                 if not stop_list:
-                    logger.info("No stop events found, we are online for over 1 day")
+                    no_stop_events = True
                     return None
 
                 next_ts = min(stop_list)
@@ -487,6 +491,23 @@ class ScheduleConfiguration:
 
         except ValueError:
             return None
+        finally:
+            self._set_no_stop_events(no_stop_events)
+
+    def _set_no_stop_events(self, no_stop_events: bool):
+        """Log at INFO when no stop events are found or found again, and repeats at DEBUG.
+
+        The daemon calls next_shutdown() every minute, so the state is only logged when it changes.
+        """
+        if no_stop_events == self._no_stop_events:
+            if no_stop_events:
+                logger.debug("Still no stop events found, staying online for over 1 day")
+            return
+        self._no_stop_events = no_stop_events
+        if no_stop_events:
+            logger.info("No stop events found, staying online for over 1 day")
+        else:
+            logger.info("Stop events found again")
 
     def active(self, now: datetime.datetime | None = None):
         """Check if system should be powered on at given time.
@@ -559,7 +580,7 @@ def detect_hardware(manual_override: str | None = None) -> str | None:
     except (OSError, IOError) as e:
         logger.debug("Raspberry Pi 5 detection failed: %s", e)
 
-    logger.warning("No supported power management hardware detected")
+    logger.debug("No supported power management hardware detected")
     return None
 
 

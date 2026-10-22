@@ -5,8 +5,11 @@ with RTC and alarm capabilities.
 """
 
 import datetime
+import logging
 
 from .. import ActionReason
+
+logger = logging.getLogger(__name__)
 
 
 class PowerManager:
@@ -30,6 +33,31 @@ class PowerManager:
             tz: Timezone for RTC operations (default: UTC)
         """
         self._tz = tz
+        # alarms whose time is in the past, so the warning is logged once per occurrence
+        self._alarms_in_past: set[str] = set()
+
+    def _check_in_past(self, alarm: str, ts: datetime.datetime | None, now: datetime.datetime | None = None):
+        """Warn when an alarm time is in the past, once until it is not anymore.
+
+        The daemon sets the alarms every minute; repeats are logged at DEBUG.
+
+        Args:
+            alarm: Name of the alarm, as it starts the message (e.g. "Startup")
+            ts: Alarm time, or None if the alarm is cleared
+            now: Current time to compare against; not needed when ts is None
+        """
+        if ts is not None and now is not None and ts < now:
+            if alarm in self._alarms_in_past:
+                logger.debug("%s time is still in the past: %s", alarm, ts)
+            else:
+                logger.warning("%s time is in the past: %s", alarm, ts)
+                self._alarms_in_past.add(alarm)
+        elif alarm in self._alarms_in_past:
+            if ts is None:
+                logger.info("%s alarm cleared, its time is no longer in the past", alarm)
+            else:
+                logger.info("%s time is no longer in the past: %s", alarm, ts)
+            self._alarms_in_past.discard(alarm)
 
     @property
     def rtc_datetime(self) -> datetime.datetime:

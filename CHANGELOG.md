@@ -13,6 +13,21 @@ While the major version is 0, minor releases may contain breaking changes.
 - Under systemd, `tsscheduled` logs to the journal with each message's syslog priority,
   `SYSLOG_IDENTIFIER` `tsscheduled` and `CODE_FILE`/`CODE_LINE`/`CODE_FUNC`. Previously every
   line was stored as info. On a terminal, lines are written as `<LEVEL> <logger>: <message>`.
+- Logging follows the tsOS logging convention: quiet at the default level `WARNING`, and only
+  changes of state at `INFO`. The alarms, the selected recovery wake and "no stop events found",
+  which the loop computed every minute, are logged at `INFO` only when they change, repeats at
+  `DEBUG`. An alarm time in the past is warned about once until it is resolved, instead of every
+  minute. The schedule is summarized in one `INFO` line, with each entry at `DEBUG`.
+- An implausible RTC or one that does not match the system clock is logged as an error, as the
+  service exits. "No supported power management hardware detected" is logged once, by the caller
+  that exits. A termination signal and a scheduled shutdown are logged at `INFO`, not `WARNING`.
+- Loggers are named after their module (`tsschedule.scheduled`, `tsschedule.backends.wittypi4`,
+  ...), and messages are one sentence without a trailing period.
+
+### Fixed
+
+- The WittyPi 4 warned "startup time is in the past" for a shutdown time in the past; it now says
+  "Shutdown time is in the past".
 
 ## [0.6.0] - 2026-10-06
 

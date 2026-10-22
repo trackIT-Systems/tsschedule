@@ -1,6 +1,7 @@
 """Tests for the Raspberry Pi 5 backend against fake sysfs and device-tree files."""
 
 import datetime
+import logging
 import zoneinfo
 
 import pytest
@@ -151,3 +152,26 @@ def test_action_reason(pi5_root, power_reset, rsts, reason):
         pi5_root.set_dt_u32("rsts", rsts)
 
     assert RaspberryPi5(check_eeprom=False).action_reason is reason
+
+
+# Logging
+
+
+@pytest.mark.parametrize(("alarm", "setter"), [("Wake", "set_startup_datetime"), ("Shutdown", "set_shutdown_datetime")])
+def test_alarm_in_past_warned_once(pi5, caplog, alarm, setter):
+    """The daemon sets the alarms every minute; a time in the past is warned about once until it is resolved."""
+    caplog.set_level(logging.DEBUG, logger="tsschedule")
+    past = datetime.datetime.now(tz=UTC) - datetime.timedelta(hours=1)
+
+    for _ in range(3):
+        getattr(pi5, setter)(past)
+
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING] == [
+        f"{alarm} time is in the past: {past}"
+    ]
+
+    getattr(pi5, setter)(datetime.datetime.now(tz=UTC) + datetime.timedelta(hours=1))
+    assert any(
+        r.levelno == logging.INFO and r.getMessage().startswith(f"{alarm} time is no longer in the past")
+        for r in caplog.records
+    )

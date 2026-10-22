@@ -15,7 +15,7 @@ from .. import ActionReason
 from .base import PowerManager
 from .wittypi4 import WittyPiException
 
-logger = logging.getLogger("tsschedule.backends.raspberrypi5")
+logger = logging.getLogger(__name__)
 
 POWER_DT_PATH = pathlib.Path("/proc/device-tree/chosen/power")
 BOOTLOADER_RSTS_PATH = pathlib.Path("/proc/device-tree/chosen/bootloader/rsts")
@@ -143,17 +143,17 @@ class RaspberryPi5(PowerManager):
                     )
                 except FileNotFoundError:
                     logger.warning(
-                        "rpi-eeprom-config not found. EEPROM configuration check skipped. "
-                        "Ensure POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0 are set manually."
+                        "rpi-eeprom-config not found, skipping the EEPROM check; "
+                        "ensure POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0 are set manually"
                     )
                     return
                 except subprocess.CalledProcessError as e:
-                    logger.warning("Failed to dump EEPROM config: %s", e)
+                    logger.warning("Cannot dump the EEPROM configuration: %s", e)
                     return
                 except PermissionError:
                     logger.warning(
-                        "Permission denied accessing EEPROM. Run as root or ensure "
-                        "POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0 are set manually."
+                        "Permission denied reading the EEPROM configuration, run as root or ensure "
+                        "POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0 are set manually"
                     )
                     return
 
@@ -217,19 +217,19 @@ class RaspberryPi5(PowerManager):
                                 capture_output=True,
                                 text=True,
                             )
-                            logger.info("EEPROM configuration updated successfully. Reboot required for changes to take effect.")
+                            logger.info("EEPROM configuration updated, it takes effect after a reboot")
                         except subprocess.CalledProcessError as e:
-                            logger.error("Failed to apply EEPROM configuration: %s", e)
+                            logger.error("Cannot apply the EEPROM configuration: %s", e)
                         except PermissionError:
                             logger.warning(
-                                "Permission denied applying EEPROM config. Run as root or "
-                                "set POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0 manually."
+                                "Permission denied applying the EEPROM configuration, run as root or "
+                                "set POWER_OFF_ON_HALT=1 and WAKE_ON_GPIO=0 manually"
                             )
                     else:
                         logger.debug("EEPROM configuration already correct")
 
                 except IOError as e:
-                    logger.warning("Failed to read/write bootconf file: %s", e)
+                    logger.warning("Cannot read or write the EEPROM configuration file: %s", e)
 
             finally:
                 # Clean up temporary file
@@ -289,12 +289,13 @@ class RaspberryPi5(PowerManager):
                 Will be converted to the configured timezone.
 
         Note:
-            Logs a warning if the specified time is in the past.
+            Logs a warning if the specified time is in the past, once until it is not.
             On Raspberry Pi 5, the alarm must be cleared before setting a new value.
         """
         wakealarm_path = pathlib.Path(self.RTC_WAKEALARM_PATH)
 
         if ts is None:
+            self._check_in_past("Wake", None)
             # Clear alarm by writing 0
             try:
                 wakealarm_path.write_text("0")
@@ -304,8 +305,7 @@ class RaspberryPi5(PowerManager):
             return
 
         ts = ts.astimezone(self._tz)
-        if ts < datetime.datetime.now(tz=self._tz):
-            logger.warning("Wake time is in the past: %s", ts)
+        self._check_in_past("Wake", ts, datetime.datetime.now(tz=self._tz))
 
         # Convert to Unix timestamp (seconds since epoch)
         wake_timestamp = int(ts.timestamp())
@@ -374,12 +374,12 @@ class RaspberryPi5(PowerManager):
             when the time arrives.
         """
         if ts is None:
+            self._check_in_past("Shutdown", None)
             self._shutdown_datetime = None
             return
 
         ts = ts.astimezone(self._tz)
-        if ts < datetime.datetime.now(tz=self._tz):
-            logger.warning("Shutdown time is in the past: %s", ts)
+        self._check_in_past("Shutdown", ts, datetime.datetime.now(tz=self._tz))
 
         self._shutdown_datetime = ts
 

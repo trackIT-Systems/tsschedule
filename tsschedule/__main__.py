@@ -9,7 +9,7 @@ from .backends.raspberrypi5 import RaspberryPi5
 from .backends.wittypi4 import WittyPi4, WittyPiException
 from .journal import log_handler
 
-logger = logging.getLogger("tsschedule")
+logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(
     "tsschedule",
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Detect hardware
     hardware_type = detect_hardware()
     if not hardware_type:
-        logger.error("No supported power management hardware detected. Terminating.")
+        logger.error("No supported power management hardware detected, terminating")
         exit(2)
 
     logger.info("Detected hardware: %s", hardware_type)
@@ -56,7 +56,7 @@ if __name__ == "__main__":
             logger.error("Unknown hardware type: %s", hardware_type)
             exit(2)
     except WittyPiException as ex:
-        logger.error("Couldn't connect to power management hardware (%s), terminating.", ex)
+        logger.error("Cannot connect to power management hardware, terminating: %s", ex)
         exit(1)
 
     # Print status information (WittyPi4-specific features)

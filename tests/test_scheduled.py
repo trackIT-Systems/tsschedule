@@ -1,6 +1,7 @@
 """Tests for the tsscheduled daemon against an in-memory WittyPi 4 and a fake Raspberry Pi 5."""
 
 import datetime
+import logging
 import io
 import os
 import pathlib
@@ -378,3 +379,63 @@ def test_schedule_file_with_unquoted_times(local_tz):
 def test_schedule_file_keeps_other_types():
     raw = scheduled.load_schedule(io.StringIO("force_on: false\nlat: 54.09\nlon: 8\nname: '18:00'\n"))
     assert raw == {"force_on": False, "lat": 54.09, "lon": 8, "name": "18:00"}
+
+
+# Logging
+
+
+def messages(caplog, level, text):
+    return [r.getMessage() for r in caplog.records if r.levelno == level and text in r.getMessage()]
+
+
+def test_unchanged_alarms_are_logged_once(daemon, bus, sc, shutdowns_called, caplog):
+    """The loop runs every minute; unchanged alarms are repeated at DEBUG only."""
+    caplog.set_level(logging.DEBUG)
+    bus.now = datetime.datetime(2025, 12, 8, 23, 30, tzinfo=UTC)  # 00:30 in Berlin, active
+
+    daemon._update_alarms(sc, daemon._device.rtc_datetime)
+    bus.now += datetime.timedelta(minutes=1)
+    daemon._update_alarms(sc, daemon._device.rtc_datetime)
+
+    assert len(messages(caplog, logging.INFO, "Setting next_shutdown")) == 1
+    assert len(messages(caplog, logging.DEBUG, "Setting next_shutdown")) == 1
+
+    # the next window has other alarms
+    bus.now = datetime.datetime(2025, 12, 9, 1, 30, tzinfo=UTC)  # 02:30 in Berlin, active
+    daemon._update_alarms(sc, daemon._device.rtc_datetime)
+    assert len(messages(caplog, logging.INFO, "Setting next_shutdown")) == 2
+
+
+def test_recovery_wake_is_logged_once(bus, local_tz, shutdowns_called, caplog):
+    caplog.set_level(logging.DEBUG)
+    daemon = scheduled.PowerManagerDaemon(WittyPi4(bus), io.StringIO(RECOVERY_YML))
+    sc = ScheduleConfiguration(yaml.safe_load(RECOVERY_YML))
+    bus.now = datetime.datetime(2025, 12, 8, 9, 10, tzinfo=UTC)  # 10:10 in Berlin, on
+
+    for _ in range(3):
+        daemon._update_alarms(sc, daemon._device.rtc_datetime)
+        bus.now += datetime.timedelta(minutes=1)
+
+    assert messages(caplog, logging.INFO, "Recovery grid wake selected") == [
+        "Recovery grid wake selected: 2025-12-08 10:30:00+01:00"
+    ]
+    assert len(messages(caplog, logging.DEBUG, "Recovery grid wake selected")) == 2
+
+    # the next grid point is a new wake
+    bus.now = datetime.datetime(2025, 12, 8, 9, 40, tzinfo=UTC)  # 10:40 in Berlin
+    daemon._update_alarms(sc, daemon._device.rtc_datetime)
+    assert len(messages(caplog, logging.INFO, "Recovery grid wake selected")) == 2
+
+
+def test_run_logs_implausible_rtc_as_error(daemon, monkeypatch, caplog):
+    monkeypatch.setattr(scheduled, "last_known_time", lambda: datetime.datetime(2030, 1, 1, tzinfo=UTC))
+    with pytest.raises(SystemExit):
+        daemon.run()
+    assert messages(caplog, logging.ERROR, "RTC is implausible")
+
+
+def test_run_logs_rtc_sysclock_mismatch_as_error(daemon, monkeypatch, caplog):
+    monkeypatch.setattr(scheduled, "last_known_time", lambda: datetime.datetime(2020, 1, 1, tzinfo=UTC))
+    with pytest.raises(SystemExit):
+        daemon.run()
+    assert messages(caplog, logging.ERROR, "RTC does not match system clock")

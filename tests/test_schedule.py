@@ -6,6 +6,7 @@ takes the calendar date from a UTC timestamp picks the wrong day (wittypi4#9).
 """
 
 import datetime
+import logging
 import zoneinfo
 
 import astral
@@ -312,3 +313,44 @@ def test_parse_geolocation_file(tmp_path, content, expected):
 
 def test_parse_geolocation_file_missing(tmp_path):
     assert _parse_geolocation_file(str(tmp_path / "missing")) is None
+
+
+# Logging
+
+
+class EndlessEntry:
+    """An entry that is always active and never stops."""
+
+    def active(self, now=None):
+        return True
+
+    def prev_stop(self, now=None):
+        return None
+
+    def next_stop(self, now=None):
+        return None
+
+
+def test_no_stop_events_logged_once(tz, caplog):
+    caplog.set_level(logging.DEBUG, logger="tsschedule")
+    sc = ScheduleConfiguration({**CONFIG, "tz": str(tz)})
+    entries = sc.entries
+    sc.entries = [EndlessEntry()]
+
+    for _ in range(3):
+        assert sc.next_shutdown() is None
+
+    info = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO and "stop events" in r.getMessage().lower()]
+    assert info == ["No stop events found, staying online for over 1 day"]
+
+    sc.entries = entries
+    sc.next_shutdown(datetime.datetime(2025, 12, 8, 2, 30, tzinfo=tz))
+    info = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO and "stop events" in r.getMessage().lower()]
+    assert info[-1] == "Stop events found again"
+
+
+def test_schedule_entries_logged_at_debug(tz, caplog):
+    caplog.set_level(logging.DEBUG, logger="tsschedule")
+    ScheduleConfiguration({**CONFIG, "tz": str(tz)})
+    assert [r.levelno for r in caplog.records if r.getMessage().startswith("Schedule entry:")] == [logging.DEBUG] * 12
+    assert any(r.getMessage().startswith("Schedule loaded with 12 entries") for r in caplog.records)

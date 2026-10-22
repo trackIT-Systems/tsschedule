@@ -11,7 +11,7 @@ import smbus2
 from .. import ActionReason, ALARM_RESET, I2C_MC_ADDRESS, bcd2bin, bin2bcd
 from .base import PowerManager
 
-logger = logging.getLogger("tsschedule.backends.wittypi4")
+logger = logging.getLogger(__name__)
 
 # Read registers
 I2C_ID = 0
@@ -446,9 +446,10 @@ class WittyPi4(PowerManager):
                 Will be converted to the configured timezone.
 
         Note:
-            Logs a warning if the specified time is in the past.
+            Logs a warning if the specified time is in the past, once until it is not.
         """
         if ts is None:
+            self._check_in_past("Startup", None)
             self.alarm1_day = ALARM_RESET
             self.alarm1_weekday = ALARM_RESET
             self.alarm1_hour = ALARM_RESET
@@ -457,8 +458,7 @@ class WittyPi4(PowerManager):
             return
 
         ts = ts.astimezone(self._tz)
-        if ts < self.rtc_datetime:
-            logger.warning("startup time is in the past.")
+        self._check_in_past("Startup", ts, self.rtc_datetime)
 
         self.alarm1_day = ts.day
         self.alarm1_weekday = ALARM_RESET
@@ -491,9 +491,10 @@ class WittyPi4(PowerManager):
                 Will be converted to the configured timezone.
 
         Note:
-            Logs a warning if the specified time is in the past.
+            Logs a warning if the specified time is in the past, once until it is not.
         """
         if ts is None:
+            self._check_in_past("Shutdown", None)
             self.alarm2_day = ALARM_RESET
             self.alarm2_weekday = ALARM_RESET
             self.alarm2_hour = ALARM_RESET
@@ -502,8 +503,7 @@ class WittyPi4(PowerManager):
             return
 
         ts = ts.astimezone(self._tz)
-        if ts < self.rtc_datetime:
-            logger.warning("startup time is in the past.")
+        self._check_in_past("Shutdown", ts, self.rtc_datetime)
 
         self.alarm2_day = ts.day
         self.alarm2_weekday = ALARM_RESET  # ignore weekday in this mode

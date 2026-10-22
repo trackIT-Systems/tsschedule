@@ -39,7 +39,7 @@ parser.add_argument(
     "-s", "--schedule", type=argparse.FileType("r"), help="YML schedule configuration", default="schedule.yml"
 )
 
-logger = logging.getLogger("tsschedule")
+logger = logging.getLogger(__name__)
 
 # action reasons of a manual start, which keep the system on for the button delay
 MANUAL_START_REASONS = [
@@ -174,15 +174,24 @@ def last_known_time() -> datetime.datetime:
     return max(clocks)
 
 
-def _effective_startup(sc: ScheduleConfiguration, now: datetime.datetime | None = None) -> datetime.datetime | None:
-    """Combine scheduled startup with brownout-recovery grid wake."""
-    next_startup = sc.next_startup(now)
-    next_recovery = sc.next_recovery(now)
+def _combine_startup(
+    next_startup: datetime.datetime | None, next_recovery: datetime.datetime | None
+) -> tuple[datetime.datetime | None, datetime.datetime | None]:
+    """Combine scheduled startup with brownout-recovery grid wake.
+
+    Returns:
+        The effective startup, and the recovery wake if it was selected over the scheduled startup.
+    """
     candidates = [t for t in (next_startup, next_recovery) if t is not None]
     effective_startup = min(candidates) if candidates else None
     if next_recovery and effective_startup == next_recovery and next_recovery != next_startup:
-        logger.info("Recovery grid wake selected: %s", next_recovery)
-    return effective_startup
+        return effective_startup, next_recovery
+    return effective_startup, None
+
+
+def _effective_startup(sc: ScheduleConfiguration, now: datetime.datetime | None = None) -> datetime.datetime | None:
+    """Combine scheduled startup with brownout-recovery grid wake."""
+    return _combine_startup(sc.next_startup(now), sc.next_recovery(now))[0]
 
 
 class PowerManagerDaemon(threading.Thread):
@@ -206,6 +215,9 @@ class PowerManagerDaemon(threading.Thread):
         self._device = device
         self._stop = threading.Event()
         self._schedule = schedule
+        # last alarms and selected recovery wake, to log them only when they change
+        self._alarms: tuple | None = None
+        self._recovery_wake: datetime.datetime | None = None
 
     def terminate(self, sig):
         """Handle termination signals gracefully.
@@ -213,7 +225,7 @@ class PowerManagerDaemon(threading.Thread):
         Args:
             sig: Signal number received (SIGTERM or SIGINT)
         """
-        logger.warning("Caught %s, terminating.", signal.Signals(sig).name)
+        logger.info("Caught %s, terminating", signal.Signals(sig).name)
         self._stop.set()
 
     def run(self):
@@ -261,25 +273,25 @@ class PowerManagerDaemon(threading.Thread):
         try:
             # check clock plausibility
             if self._device.rtc_datetime < last_known_time():
-                logger.warning(
-                    "RTC is implausible (%s). Connect to GPS/internet and wait for timesync", self._device.rtc_datetime
+                logger.error(
+                    "RTC is implausible (%s), connect to GPS/internet and wait for timesync", self._device.rtc_datetime
                 )
                 exit(3)
 
             # check RTC and systemclock matching
             if not self._device.rtc_sysclock_match(threshold=datetime.timedelta(seconds=5)):
-                logger.warning("RTC does not match system clock, check system configuration")
+                logger.error("RTC does not match system clock, check system configuration")
                 exit(3)
 
             # set clock synced
             sync_path = pathlib.Path("/run/systemd/timesync/synchronized")
             logger.info("RTC is valid, setting %s", sync_path)
             if not sync_path.parent.exists():
-                logger.info("Creating for /run/systemd/timesync/...")
+                logger.info("Creating %s", sync_path.parent)
                 sync_path.parent.mkdir(parents=True, exist_ok=True)
             sync_path.touch()
         except ValueError:
-            logger.error("RTC is unset. Connect to GPS/internet, and wait for timesync")
+            logger.error("RTC is unset, connect to GPS/internet and wait for timesync")
             exit(3)
         except RuntimeError as e:
             logger.error("Can't check RTC plausibility: %s", e)
@@ -332,23 +344,31 @@ class PowerManagerDaemon(threading.Thread):
         """
         next_startup = sc.next_startup(now)
         next_recovery = sc.next_recovery(now)
-        effective_startup = _effective_startup(sc, now)
+        effective_startup, recovery_wake = _combine_startup(next_startup, next_recovery)
         next_shutdown = sc.next_shutdown(now)
 
-        logger.info(
+        # this runs every minute: log at INFO only what changed
+        if recovery_wake != self._recovery_wake:
+            if recovery_wake:
+                logger.info("Recovery grid wake selected: %s", recovery_wake)
+            self._recovery_wake = recovery_wake
+        elif recovery_wake:
+            logger.debug("Recovery grid wake selected: %s", recovery_wake)
+
+        alarms = (next_shutdown, next_startup, next_recovery, effective_startup)
+        log = logger.info if alarms != self._alarms else logger.debug
+        log(
             "Setting next_shutdown: %s, next_startup: %s, next_recovery: %s, effective_startup: %s",
-            next_shutdown,
-            next_startup,
-            next_recovery,
-            effective_startup,
+            *alarms,
         )
+        self._alarms = alarms
         self._device.set_startup_datetime(effective_startup)
         self._device.set_shutdown_datetime(next_shutdown)
 
         # Check if shutdown time has arrived
         shutdown_dt = self._device.get_shutdown_datetime()
         if shutdown_dt and shutdown_dt <= now:
-            logger.warning("Shutdown time has arrived, shutting down")
+            logger.info("Shutdown time has arrived, shutting down")
             os.system("shutdown 0")
             return True
 
@@ -397,7 +417,7 @@ def main():
     # Detect hardware
     hardware_type = detect_hardware()
     if not hardware_type:
-        logger.error("No supported power management hardware detected. Terminating.")
+        logger.error("No supported power management hardware detected, terminating")
         exit(2)
 
     logger.info("Detected hardware: %s", hardware_type)
@@ -413,7 +433,7 @@ def main():
             logger.error("Unknown hardware type: %s", hardware_type)
             exit(2)
     except WittyPiException as ex:
-        logger.error("Couldn't connect to power management hardware (%s), terminating.", ex)
+        logger.error("Cannot connect to power management hardware, terminating: %s", ex)
         exit(1)
 
     # Create and run daemon
